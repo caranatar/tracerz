@@ -1,4 +1,5 @@
 #include "tracerz.h"
+#include "catch.hpp"
 
 int main()
 {
