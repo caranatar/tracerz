@@ -13,5 +13,5 @@ addons:
       - g++-6
       - cmake
 script:
-  cmake .
-  make
+  - cmake .
+  - make
