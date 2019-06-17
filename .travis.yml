@@ -3,6 +3,7 @@ language:
   - cpp
 compiler:
   - gcc
+  - clang
 addons:
   apt:
     sources:
@@ -13,8 +14,8 @@ addons:
       - cmake
 script:
   # Export CC and CXX to tell cmake which compiler to use
-  - export CC=/usr/bin/gcc-7
-  - export CXX=/usr/bin/g++-7
+  - if [ "$CC" = "gcc" ]; then export CC=/usr/bin/gcc-7; fi
+  - if [ "$CXX" = "g++" ]; then export CXX=/usr/bin/g++-7; fi
   - mkdir build
   - cd build
   - cmake ..
