@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <random>
@@ -314,6 +313,7 @@ public:
                       bool ignoreModifiers = false) {
     if (!(this->modifiers.empty() || ignoreModifiers)) {
       std::string output = this->flatten(modFuns, ignoreHidden, true);
+      if (output.empty()) return "";
       for (auto &mod : this->modifiers) {
         std::vector<std::string> params;
         std::string modName = mod;
@@ -339,16 +339,15 @@ public:
 
         if (modFuns.find(modName) != modFuns.end()) {
           output = modFuns[modName]->callVec(output, params);
-        } else {
-          std::cerr << "no mod " << modName << std::endl;
         }
       }
       return output;
     }
 
     if (!this->hasChildren()) {
-      if (ignoreHidden && this->isNodeHidden())
+      if (ignoreHidden && this->isNodeHidden()) {
         return "";
+      }
       return this->input;
     }
 
