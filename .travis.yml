@@ -23,5 +23,6 @@ script:
   - cmake -E env CXXFLAGS="-ftest-coverage" cmake ..
   - make
   - ./tracerz
+  - cp ../tracerz.h .
 after_success:
-  - coveralls --exclude json --exclude Catch2 --gcov-options '\-lp'
+  - coveralls --exclude CMakeFiles --exclude json --exclude Catch2 --gcov-options '\-lp'
