@@ -19,5 +19,6 @@ script:
   - cd build
   - cmake ..
   - make
+  - ./tracerz
   - cd ..
   - rm -R build
