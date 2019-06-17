@@ -27,4 +27,4 @@ script:
   - cp *.gcno *.gcda *.o ../../../
   - cd ../../../
 after_success:
-  - if [ "$CC" = "gcc" ]; then coveralls --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'; fi
+  - coveralls --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'
