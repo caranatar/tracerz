@@ -4,6 +4,11 @@
 
 #include "catch.hpp"
 
+TEST_CASE("TreeNode", "[tracerz]") {
+  tracerz::Grammar zgr("{}"_json);
+  REQUIRE(zgr.getTree("blah")->getRoot()->getLastExpandableChild() == nullptr);
+}
+
 TEST_CASE("Basic substitution", "[tracerz]") {
   nlohmann::json oneSub = {
       {"rule", "output"},
@@ -28,29 +33,31 @@ TEST_CASE("Nested substitution", "[tracerz]") {
 
 TEST_CASE("Basic modifiers", "[tracerz]") {
   nlohmann::json mods = {
-      {"animal", "albatross"},
-      {"animalX", "fox"},
-      {"animalConsonantY", "guppy"},
-      {"animalVowelY", "monkey"},
-      {"food", "fish"},
-      {"labor", "union"},
-      {"vehicle", "car"},
-      {"verbS", "pass"},
-      {"verbE", "replace"},
-      {"verbH", "cash"},
-      {"verbX", "box"},
-      {"verbConsonantY", "carry"},
-      {"verbVowelY", "monkey"},
-      {"verb", "hand"},
-      {"anOrigin", "#animal.a# ate #food.a#"},
-      {"anOrigin2", "the iww is #labor.a#"},
-      {"capAllOrigin", "#anOrigin.capitalizeAll#"},
-      {"capOrigin", "#anOrigin.capitalize#"},
-      {"sOrigin", "#animal.s# eat #food.s#"},
-      {"sOrigin2", "#animalX.s# eat #animalConsonantY.s# and #animalVowelY.s#"},
-      {"sOrigin3", "people drive #vehicle.s#"},
-      {"edOrigin", "#verbS.ed# #verbE.ed# #verbH.ed# #verbX.ed# #verbConsonantY.ed# #verbVowelY.ed# #verb.ed#"},
-      {"replaceOrigin", "#anOrigin.replace(a,b)#"}
+      {"animal",               "albatross"},
+      {"animalX",              "fox"},
+      {"animalConsonantY",     "guppy"},
+      {"animalVowelY",         "monkey"},
+      {"food",                 "fish"},
+      {"labor",                "union"},
+      {"vehicle",              "car"},
+      {"verbS",                "pass"},
+      {"verbE",                "replace"},
+      {"verbH",                "cash"},
+      {"verbX",                "box"},
+      {"verbConsonantY",       "carry"},
+      {"verbVowelY",           "monkey"},
+      {"verb",                 "hand"},
+      {"numStart",             "00flour from italy"},
+      {"anOrigin",             "#animal.a# ate #food.a#"},
+      {"anOrigin2",            "the iww is #labor.a#"},
+      {"capAllOrigin",         "#anOrigin.capitalizeAll#"},
+      {"capOrigin",            "#anOrigin.capitalize#"},
+      {"sOrigin",              "#animal.s# eat #food.s#"},
+      {"sOrigin2",             "#animalX.s# eat #animalConsonantY.s# and #animalVowelY.s#"},
+      {"sOrigin3",             "people drive #vehicle.s#"},
+      {"edOrigin",             "#verbS.ed# #verbE.ed# #verbH.ed# #verbX.ed# #verbConsonantY.ed# #verbVowelY.ed# #verb.ed#"},
+      {"replaceOrigin",        "#anOrigin.replace(a,b)#"},
+      {"capAllNumStartOrigin", "#numStart.capitalizeAll#"}
   };
   tracerz::Grammar zgr(mods);
   zgr.addModifiers(tracerz::getBaseEngModifiers());
@@ -63,6 +70,7 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
   REQUIRE(zgr.flatten("#sOrigin3#") == "people drive cars");
   REQUIRE(zgr.flatten("#edOrigin#") == "passed replaced cashed boxed carried monkeyd handed");
   REQUIRE(zgr.flatten("#replaceOrigin#") == "bn blbbtross bte b fish");
+  REQUIRE(zgr.flatten("#capAllNumStartOrigin#") == "00flour From Italy");
 }
 
 TEST_CASE("Basic actions", "[tracerz]") {

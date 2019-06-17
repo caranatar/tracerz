@@ -16,7 +16,7 @@ namespace tracerz {
 namespace details {
 class ICallback {
 public:
-  virtual std::string callVec(const std::string &input, const std::vector<std::string> &params) = 0;
+  virtual std::string callVec(const std::string& input, const std::vector<std::string>& params) = 0;
 
   virtual ~ICallback() = default;
 };
@@ -34,7 +34,7 @@ std::string callg(G gFn, PT param, PTs... params) {
 }
 
 template<typename F, typename... PTs>
-std::string callf(F fun, const std::string &input, PTs... params) {
+std::string callf(F fun, const std::string& input, PTs... params) {
   return callg([&input, &fun](PTs... params) {
     return fun(input, params...);
   }, params...);
@@ -46,16 +46,16 @@ template<int N,
 class CallVec {
 public:
   static std::string callVec(F fun,
-                             const std::string &input,
+                             const std::string& input,
                              std::vector<std::string> paramVec,
                              PTs... params) {
     std::string param = paramVec[0];
     std::vector<std::string> restOfVec(++paramVec.begin(), paramVec.end());
-    return CallVec<N - 1, F, const std::string &, PTs...>::callVec(fun,
-                                                                   input,
-                                                                   restOfVec,
-                                                                   params...,
-                                                                   param);
+    return CallVec<N - 1, F, const std::string&, PTs...>::callVec(fun,
+                                                                  input,
+                                                                  restOfVec,
+                                                                  params...,
+                                                                  param);
   }
 };
 
@@ -64,8 +64,8 @@ template<typename F,
 class CallVec<0, F, PTs...> {
 public:
   static std::string callVec(F fun,
-                             const std::string &input,
-                             const std::vector<std::string> &/*unused*/,
+                             const std::string& input,
+                             const std::vector<std::string>&/*unused*/,
                              PTs... params) {
     return callf(fun, input, params...);
   }
@@ -75,14 +75,14 @@ template<int N, typename F>
 class CallVecF {
 public:
   static std::string callVecF(F fun,
-                              const std::string &input,
-                              const std::vector<std::string> &params) {
+                              const std::string& input,
+                              const std::vector<std::string>& params) {
     std::string param = params[0];
     std::vector<std::string> restOfParams(++params.begin(), params.end());
-    return CallVec<N - 1, F, const std::string &>::callVec(fun,
-                                                           input,
-                                                           restOfParams,
-                                                           param);
+    return CallVec<N - 1, F, const std::string&>::callVec(fun,
+                                                          input,
+                                                          restOfParams,
+                                                          param);
   }
 };
 
@@ -90,8 +90,8 @@ template<typename F>
 class CallVecF<0, F> {
 public:
   static std::string callVecF(F fun,
-                              const std::string &input,
-                              const std::vector<std::string> & /*unused*/) {
+                              const std::string& input,
+                              const std::vector<std::string>& /*unused*/) {
     return fun(input);
   }
 };
@@ -110,7 +110,7 @@ public:
     return callf(this->callback, params...);
   }
 
-  std::string callVec(const std::string &input, const std::vector<std::string> &params) override {
+  std::string callVec(const std::string& input, const std::vector<std::string>& params) override {
     return CallVecF<sizeof...(Ts) - 1,
         decltype(this->callback)>::callVecF(this->callback, input, params);
   }
@@ -121,90 +121,90 @@ private:
 
 typedef std::map<std::string, std::shared_ptr<ICallback>> callback_map_t;
 
-const std::regex &getActionRegex() {
+const std::regex& getActionRegex() {
   static const std::regex rgx(R"(\[([^\]]*)\])");
   return rgx;
 }
 
-const std::regex &getCommaRegex() {
+const std::regex& getCommaRegex() {
   static const std::regex rgx(",");
   return rgx;
 }
 
-const std::regex &getModifierRegex() {
+const std::regex& getModifierRegex() {
   static const std::regex rgx(".([^.]+)");
   return rgx;
 }
 
-const std::regex &getOnlyActionsRegex() {
+const std::regex& getOnlyActionsRegex() {
   static const std::regex rgx(R"(^(?:\[[^\]]*\])+$)");
   return rgx;
 }
 
-const std::regex &getOnlyKeyWithTextActionRegex() {
+const std::regex& getOnlyKeyWithTextActionRegex() {
   static const std::regex rgx(R"(^\[([[:alnum:]]+):([^#\]]+)\]$)");
   return rgx;
 }
 
-const std::regex &getOnlyKeyWithRuleActionRegex() {
+const std::regex& getOnlyKeyWithRuleActionRegex() {
   static const std::regex rgx(R"(^\[([[:alnum:]]+):(#[[:alnum:]]+(?:\.[^.#]+)*#)\]$)");
   return rgx;
 }
 
-const std::regex &getOnlyKeylessRuleActionRegex() {
+const std::regex& getOnlyKeylessRuleActionRegex() {
   static const std::regex rgx(R"(^\[(#[[:alnum:]]+(?:\.[^.#]+)*#)\]$)");
   return rgx;
 }
 
-const std::regex &getOnlyRuleRegex() {
+const std::regex& getOnlyRuleRegex() {
   static const std::regex rgx(R"(^#([[:alnum:]]+)((?:\.[^.#]+)*)#$)");
   return rgx;
 }
 
-const std::regex &getOnlyRuleWithActionsRegex() {
+const std::regex& getOnlyRuleWithActionsRegex() {
   static const std::regex rgx(R"(^#((?:\[.*\])+)([[:alnum:]]+)((?:\.[^.#]+)*)#$)");
   return rgx;
 }
 
-const std::regex &getRuleRegex() {
+const std::regex& getRuleRegex() {
   static const std::regex rgx(R"(#(?:\[.*\])*([[:alnum:]]+)((?:\.[^.#]+)*)#)");
   return rgx;
 }
 
-const std::regex &getParametricModifierRegex() {
+const std::regex& getParametricModifierRegex() {
   static const std::regex rgx(R"(([^\(]+)\(([^\)]+)\))");
   return rgx;
 }
 
-bool containsRule(const std::string &input) {
+bool containsRule(const std::string& input) {
   return std::regex_search(input, details::getRuleRegex());
 }
 
-bool containsOnlyActions(const std::string &input) {
+bool containsOnlyActions(const std::string& input) {
   return std::regex_match(input, details::getOnlyActionsRegex());
 }
 
-bool containsOnlyKeylessRuleAction(const std::string &input) {
+bool containsOnlyKeylessRuleAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeylessRuleActionRegex());
 }
 
-bool containsOnlyKeyWithTextAction(const std::string &input) {
+bool containsOnlyKeyWithTextAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeyWithTextActionRegex());
 }
 
-bool containsOnlyKeyWithRuleAction(const std::string &input) {
+bool containsOnlyKeyWithRuleAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeyWithRuleActionRegex());
 }
 
-bool containsOnlyRule(const std::string &input) {
+bool containsOnlyRule(const std::string& input) {
   return std::regex_match(input, details::getOnlyRuleRegex());
 }
 
-bool containsOnlyRuleWithActions(const std::string &input) {
+bool containsOnlyRuleWithActions(const std::string& input) {
   return std::regex_match(input, details::getOnlyRuleWithActionsRegex());
 }
 
-bool containsParametricModifier(const std::string &input) {
+bool containsParametricModifier(const std::string& input) {
   return std::regex_match(input, details::getParametricModifierRegex());
 }
 } // End namespace details
@@ -216,7 +216,7 @@ public:
         prevUnexpandedLeaf(nullptr), nextUnexpandedLeaf(nullptr), isNodeHidden_(false) {
   }
 
-  explicit TreeNode(const std::string &input,
+  explicit TreeNode(const std::string& input,
                     std::shared_ptr<TreeNode> prev = nullptr,
                     std::shared_ptr<TreeNode> next = nullptr,
                     std::shared_ptr<TreeNode> prevUnexpanded = nullptr,
@@ -229,7 +229,7 @@ public:
 
   virtual ~TreeNode() = default;
 
-  void addChild(const std::string &inputStr) {
+  void addChild(const std::string& inputStr) {
     std::shared_ptr<TreeNode> prev = nullptr;
     std::shared_ptr<TreeNode> next = nullptr;
     if (this->children.empty()) {
@@ -290,7 +290,7 @@ public:
   }
 
   bool areChildrenComplete() const {
-    for (auto &child : this->children) {
+    for (auto& child : this->children) {
       if (!child->isNodeComplete()) return false;
     }
     return true;
@@ -312,7 +312,7 @@ public:
     if (!(this->modifiers.empty() || ignoreModifiers)) {
       std::string output = this->flatten(modFuns, ignoreHidden, true);
       if (output.empty()) return "";
-      for (auto &mod : this->modifiers) {
+      for (auto& mod : this->modifiers) {
         std::vector<std::string> params;
         std::string modName = mod;
 
@@ -350,7 +350,7 @@ public:
     }
 
     std::string ret;
-    for (auto &child : this->children) {
+    for (auto& child : this->children) {
       ret += child->flatten(modFuns, ignoreHidden, false);
     }
     return ret;
@@ -359,7 +359,7 @@ public:
   template<typename RNG>
   void expandNode(const nlohmann::json&, RNG&, nlohmann::json&);
 
-  const std::string &getInput() const { return this->input; }
+  const std::string& getInput() const { return this->input; }
 
   std::shared_ptr<TreeNode> getNextLeaf() const {
     return this->nextLeaf;
@@ -417,7 +417,7 @@ public:
     return this->isNodeHidden_;
   }
 
-  void addModifier(const std::string &mod) {
+  void addModifier(const std::string& mod) {
     this->modifiers.push_back(mod);
   }
 
@@ -440,9 +440,9 @@ private:
 };
 
 template<typename RNG>
-void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
+void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
-                          nlohmann::json &runtimeDictionary) {
+                          nlohmann::json& runtimeDictionary) {
   if (this->isNodeExpanded()) return;
 
   if (details::containsOnlyRule(this->input)) {
@@ -460,7 +460,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
                                              details::getModifierRegex(),
                                              0),
                   std::sregex_token_iterator(),
-                  [&mods](auto &mtch) {
+                  [&mods](auto& mtch) {
                     std::string modifier = mtch.str().substr(1, mtch.str().size());
                     mods.push_back(modifier);
                   });
@@ -478,7 +478,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
       output = ruleContents[dist(rng)];
     }
 
-    for (auto &modifier : mods) {
+    for (auto& modifier : mods) {
       this->addModifier(modifier);
     }
     this->addChild(output);
@@ -523,7 +523,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
                                              details::getCommaRegex(),
                                              -1),
                   std::sregex_token_iterator(),
-                  [&arr, this, &key](auto &mtch) {
+                  [&arr, this, &key](auto& mtch) {
                     arr.push_back(mtch.str());
                     this->addChild(mtch.str());
                   });
@@ -539,7 +539,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
                                              details::getActionRegex(),
                                              {-1, 0}),
                   std::sregex_token_iterator(),
-                  [this](auto &mtch) {
+                  [this](auto& mtch) {
                     auto action = mtch.str();
                     // Ignore empty tokens, add action with []
                     if (!action.empty()) {
@@ -552,7 +552,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
                                              details::getRuleRegex(),
                                              {-1, 0}),
                   std::sregex_token_iterator(),
-                  [this](auto &mtch) {
+                  [this](auto& mtch) {
                     if (!mtch.str().empty())
                       this->addChild(mtch.str());
                   });
@@ -567,7 +567,7 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
 
 class Tree {
 public:
-  Tree(const std::string &input,
+  Tree(const std::string& input,
        const nlohmann::json& grammar)
       : leafIndex(new TreeNode), unexpandedLeafIndex(new TreeNode), root(new TreeNode(input)),
         nextUnexpandedLeaf(nullptr), jsonGrammar(grammar) {
@@ -661,7 +661,7 @@ private:
   std::shared_ptr<TreeNode> unexpandedLeafIndex;
   std::shared_ptr<TreeNode> root;
   std::shared_ptr<TreeNode> nextUnexpandedLeaf;
-  const nlohmann::json &jsonGrammar;
+  const nlohmann::json& jsonGrammar;
   nlohmann::json runtimeDictionary;
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
@@ -786,18 +786,18 @@ public:
         rng(_rng) {
   }
 
-  std::shared_ptr<Tree> getTree(const std::string &input) const {
+  std::shared_ptr<Tree> getTree(const std::string& input) const {
     std::shared_ptr<Tree> tree(new Tree(input, this->jsonGrammar));
     return tree;
   }
 
-  void addModifiers(const details::callback_map_t &mfs) {
-    for (auto &mf : mfs) {
+  void addModifiers(const details::callback_map_t& mfs) {
+    for (auto& mf : mfs) {
       this->addModifier(mf.first, mf.second);
     }
   }
 
-  void addModifier(const std::string &name,
+  void addModifier(const std::string& name,
                    std::shared_ptr<details::ICallback> mod) {
     this->modifierFunctions[name] = std::move(mod);
   }
