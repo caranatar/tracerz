@@ -71,13 +71,23 @@ TEST_CASE("Basic actions", "[tracerz]") {
       {"getKey2",          "#key2# is key2"},
       {"animal",           "seagull"},
       {"fun",              "[key:whale][key2:dolphin]"},
+      {"dll",              "#animal.s# "},
+      {"dlr",              "are neat"},
+      {"drl",              ". just kidding. "},
+      {"drr",              "#animal.s# are annoying"},
+      {"dl",               "#dll##dlr#"},
+      {"dr",               "#drl##drr#"},
+      {"deep",             "#dl##dr#"},
       {"textGetKeyOrigin", "#[key:blurf]getKey#"},
       {"ruleGetKeyOrigin", "#[key:#animal#]getKey#"},
-      {"funOrigin",        "#[#fun#]getKey# #getKey2#"}
+      {"funOrigin",        "#[#fun#]getKey# #getKey2#"},
+      {"deepOrigin",       "#[key:#deep#]getKey#"}
   };
   tracerz::Grammar zgr(actions);
   REQUIRE(zgr.flatten("#[key:testkey]getKey#") == "key is testkey");
   REQUIRE(zgr.flatten("#textGetKeyOrigin#") == "key is blurf");
   REQUIRE(zgr.flatten("#ruleGetKeyOrigin#") == "key is seagull");
   REQUIRE(zgr.flatten("#funOrigin#") == "key is whale dolphin is key2");
+  zgr.addModifiers(tracerz::Grammar::getBaseEngModifiers());
+  REQUIRE(zgr.flatten("#deepOrigin#") == "key is seagulls are neat. just kidding. seagulls are annoying");
 }
