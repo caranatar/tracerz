@@ -172,7 +172,7 @@ const std::regex& getRuleRegex() {
 }
 
 const std::regex& getParametricModifierRegex() {
-  static const std::regex rgx(R"(([^\(]+)\(([^\)]+)\))");
+  static const std::regex rgx(R"(([^\(]+)\(([^\)]*)\))");
   return rgx;
 }
 
@@ -816,7 +816,14 @@ public:
     this->modifierFunctions[name] = std::move(mod);
   }
 
-  details::callback_map_t getModifierFunctions() {
+  template<typename... PTs>
+  void addModifier(const std::string& name,
+                   std::function<std::string(PTs...)> fun) {
+    std::shared_ptr<details::ICallback> fptr(new details::Callback<PTs...>(fun));
+    this->addModifier(name, fptr);
+  }
+
+  const details::callback_map_t& getModifierFunctions() const {
     return this->modifierFunctions;
   }
 
