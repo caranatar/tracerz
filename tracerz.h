@@ -356,7 +356,8 @@ public:
     return ret;
   }
 
-  void expandNode(const nlohmann::json &, std::mt19937 &, nlohmann::json &);
+  template<typename RNG>
+  void expandNode(const nlohmann::json&, RNG&, nlohmann::json&);
 
   const std::string &getInput() const { return this->input; }
 
@@ -438,8 +439,9 @@ private:
   std::vector<std::string> modifiers;
 };
 
+template<typename RNG>
 void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
-                          std::mt19937 &rng,
+                          RNG& rng,
                           nlohmann::json &runtimeDictionary) {
   if (this->isNodeExpanded()) return;
 
@@ -566,10 +568,9 @@ void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
 class Tree {
 public:
   Tree(const std::string &input,
-       const nlohmann::json &grammar,
-       std::mt19937 rng = std::mt19937(time(0)))
+       const nlohmann::json& grammar)
       : leafIndex(new TreeNode), unexpandedLeafIndex(new TreeNode), root(new TreeNode(input)),
-        nextUnexpandedLeaf(nullptr), jsonGrammar(grammar), rng(rng) {
+        nextUnexpandedLeaf(nullptr), jsonGrammar(grammar) {
     this->root->setPrevLeaf(this->leafIndex);
     this->leafIndex->setNextLeaf(this->root);
 
@@ -579,13 +580,14 @@ public:
     }
   }
 
-  bool expand(const details::callback_map_t &modFuns) {
+  template<typename RNG>
+  bool expand(const details::callback_map_t& modFuns, RNG& rng) {
     auto next = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
 
     this->expandingNodes.push(next);
 
     next->expandNode(this->jsonGrammar,
-                     this->rng,
+                     rng,
                      this->runtimeDictionary);
 
     if (next->areChildrenComplete()) {
@@ -619,7 +621,8 @@ public:
     return this->unexpandedLeafIndex->hasNextUnexpandedLeaf();
   }
 
-  bool expandBF() {
+  template<typename RNG>
+  bool expandBF(RNG& rng) {
     if (!this->nextUnexpandedLeaf) {
       if (this->unexpandedLeafIndex->hasNextUnexpandedLeaf()) {
         this->nextUnexpandedLeaf = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
@@ -630,7 +633,7 @@ public:
 
     std::shared_ptr<TreeNode> next = this->nextUnexpandedLeaf->getNextUnexpandedLeaf();
     this->nextUnexpandedLeaf->expandNode(this->jsonGrammar,
-                                         this->rng,
+                                         rng,
                                          this->runtimeDictionary);
     this->nextUnexpandedLeaf = next;
 
@@ -659,15 +662,126 @@ private:
   std::shared_ptr<TreeNode> root;
   std::shared_ptr<TreeNode> nextUnexpandedLeaf;
   const nlohmann::json &jsonGrammar;
-  std::mt19937 rng;
   nlohmann::json runtimeDictionary;
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
 
+const details::callback_map_t& getBaseEngModifiers() {
+  static auto wrap = [](const std::function<std::string(const std::string&)>& fun) {
+    std::shared_ptr<details::ICallback> ptr(new details::Callback<const std::string&>(fun));
+    return ptr;
+  };
+  static details::callback_map_t baseMods;
+
+  static auto isVowel = [](char letter) {
+    char lower = tolower(letter);
+    return (lower == 'a') || (lower == 'e') ||
+           (lower == 'i') || (lower == 'o') ||
+           (lower == 'u');
+  };
+  static auto isAlphaNum = [](char chr) {
+    return ((chr >= 'a' && chr <= 'z') ||
+            (chr >= 'A' && chr <= 'Z') ||
+            (chr >= '0' && chr <= '9'));
+  };
+
+  if (!baseMods.empty()) return baseMods;
+
+  baseMods["a"] = wrap([](const std::string& input) {
+    if (input.empty()) return input;
+
+    if (input.size() > 2) {
+      if (tolower(input[0]) == 'u' &&
+          tolower(input[2]) == 'i') {
+        return "a " + input;
+      }
+    }
+
+    if (isVowel(input[0])) {
+      return "an " + input;
+    }
+
+    return "a " + input;
+  });
+  baseMods["capitalizeAll"] = wrap([](const std::string& input) {
+    std::string ret;
+    bool capNext = true;
+
+    for (char chr : input) {
+      if (isAlphaNum(chr)) {
+        if (capNext) {
+          ret += (char) toupper(chr);
+          capNext = false;
+        } else {
+          ret += chr;
+        }
+      } else {
+        capNext = true;
+        ret += chr;
+      }
+    }
+
+    return ret;
+  });
+  baseMods["capitalize"] = wrap([](const std::string& input) {
+    std::string ret = input;
+    ret[0] = toupper(ret[0]);
+    return ret;
+  });
+  baseMods["s"] = wrap([](const std::string& input) {
+    switch (input.back()) {
+      case 's':
+        return input + "es";
+      case 'h':
+        return input + "es";
+      case 'x':
+        return input + "es";
+      case 'y':
+        if (isVowel(input[input.size() - 2]))
+          return input + "s";
+        else
+          return input.substr(0, input.size() - 1) + "ies";
+      default:
+        return input + "s";
+    }
+  });
+  baseMods["ed"] = wrap([](const std::string& input) {
+    switch (input.back()) {
+      case 's':
+        return input + "ed";
+      case 'e':
+        return input + "d";
+      case 'h':
+        return input + "ed";
+      case 'x':
+        return input + "ed";
+      case 'y':
+        if (isVowel(input[input.size() - 2]))
+          return input + "d"; // TODO: this seems incorrect
+        else
+          return input.substr(0, input.size() - 1) + "ied";
+      default:
+        return input + "ed";
+    }
+  });
+
+  baseMods["replace"] =
+      std::shared_ptr<details::ICallback>(new details::Callback<const std::string&,
+          const std::string&, const std::string&>([](const std::string& input,
+                                                     const std::string& target,
+                                                     const std::string& replacement) {
+        return std::regex_replace(input,
+                                  std::regex(target),
+                                  replacement);
+      }));
+  return baseMods;
+}
+
+template<typename RNG = std::mt19937>
 class Grammar {
 public:
   explicit Grammar(nlohmann::json grammar = "{}"_json,
-                   std::mt19937 _rng = std::mt19937(time(0)))
+                   RNG _rng = RNG(time(nullptr)))
       : jsonGrammar(std::move(grammar)),
         rng(_rng) {
   }
@@ -675,117 +789,6 @@ public:
   std::shared_ptr<Tree> getTree(const std::string &input) const {
     std::shared_ptr<Tree> tree(new Tree(input, this->jsonGrammar));
     return tree;
-  }
-
-  static const details::callback_map_t &getBaseEngModifiers() {
-    static auto wrap = [](const std::function<std::string(const std::string &)> &fun) {
-      std::shared_ptr<details::ICallback> ptr(new details::Callback<const std::string &>(fun));
-      return ptr;
-    };
-    static details::callback_map_t baseMods;
-
-    static auto isVowel = [](char letter) {
-      char lower = tolower(letter);
-      return (lower == 'a') || (lower == 'e') ||
-             (lower == 'i') || (lower == 'o') ||
-             (lower == 'u');
-    };
-    static auto isAlphaNum = [](char chr) {
-      return ((chr >= 'a' && chr <= 'z') ||
-              (chr >= 'A' && chr <= 'Z') ||
-              (chr >= '0' && chr <= '9'));
-    };
-
-    if (!baseMods.empty()) return baseMods;
-
-    baseMods["a"] = wrap([](const std::string &input) {
-      if (input.empty()) return input;
-
-      if (input.size() > 2) {
-        if (tolower(input[0]) == 'u' &&
-            tolower(input[2]) == 'i') {
-          return "a " + input;
-        }
-      }
-
-      if (isVowel(input[0])) {
-        return "an " + input;
-      }
-
-      return "a " + input;
-    });
-    baseMods["capitalizeAll"] = wrap([](const std::string &input) {
-      std::string ret;
-      bool capNext = true;
-
-      for (char chr : input) {
-        if (isAlphaNum(chr)) {
-          if (capNext) {
-            ret += (char) toupper(chr);
-            capNext = false;
-          } else {
-            ret += chr;
-          }
-        } else {
-          capNext = true;
-          ret += chr;
-        }
-      }
-
-      return ret;
-    });
-    baseMods["capitalize"] = wrap([](const std::string &input) {
-      std::string ret = input;
-      ret[0] = toupper(ret[0]);
-      return ret;
-    });
-    baseMods["s"] = wrap([](const std::string &input) {
-      switch (input.back()) {
-        case 's':
-          return input + "es";
-        case 'h':
-          return input + "es";
-        case 'x':
-          return input + "es";
-        case 'y':
-          if (isVowel(input[input.size() - 2]))
-            return input + "s";
-          else
-            return input.substr(0, input.size() - 1) + "ies";
-        default:
-          return input + "s";
-      }
-    });
-    baseMods["ed"] = wrap([](const std::string &input) {
-      switch (input.back()) {
-        case 's':
-          return input + "ed";
-        case 'e':
-          return input + "d";
-        case 'h':
-          return input + "ed";
-        case 'x':
-          return input + "ed";
-        case 'y':
-          if (isVowel(input[input.size() - 2]))
-            return input + "d"; // TODO: this seems incorrect
-          else
-            return input.substr(0, input.size() - 1) + "ied";
-        default:
-          return input + "ed";
-      }
-    });
-
-    baseMods["replace"] =
-        std::shared_ptr<details::ICallback>(new details::Callback<const std::string &,
-            const std::string &, const std::string &>([](const std::string &input,
-                                                         const std::string &target,
-                                                         const std::string &replacement) {
-          return std::regex_replace(input,
-                                    std::regex(target),
-                                    replacement);
-        }));
-    return baseMods;
   }
 
   void addModifiers(const details::callback_map_t &mfs) {
@@ -805,13 +808,13 @@ public:
 
   std::string flatten(const std::string& input) {
     auto tree = this->getTree(input);
-    while(tree->expand(this->getModifierFunctions()));
+    while (tree->expand(this->getModifierFunctions(), this->rng));
     return tree->flatten(this->getModifierFunctions());
   }
 
 private:
   nlohmann::json jsonGrammar;
-  std::mt19937 rng;
+  RNG rng;
   details::callback_map_t modifierFunctions;
 };
 

@@ -53,7 +53,7 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
       {"replaceOrigin", "#anOrigin.replace(a,b)#"}
   };
   tracerz::Grammar zgr(mods);
-  zgr.addModifiers(tracerz::Grammar::getBaseEngModifiers());
+  zgr.addModifiers(tracerz::getBaseEngModifiers());
   REQUIRE(zgr.flatten("#anOrigin#") == "an albatross ate a fish");
   REQUIRE(zgr.flatten("#anOrigin2#") == "the iww is a union");
   REQUIRE(zgr.flatten("#capAllOrigin#") == "An Albatross Ate A Fish");
@@ -88,6 +88,6 @@ TEST_CASE("Basic actions", "[tracerz]") {
   REQUIRE(zgr.flatten("#textGetKeyOrigin#") == "key is blurf");
   REQUIRE(zgr.flatten("#ruleGetKeyOrigin#") == "key is seagull");
   REQUIRE(zgr.flatten("#funOrigin#") == "key is whale dolphin is key2");
-  zgr.addModifiers(tracerz::Grammar::getBaseEngModifiers());
+  zgr.addModifiers(tracerz::getBaseEngModifiers());
   REQUIRE(zgr.flatten("#deepOrigin#") == "key is seagulls are neat. just kidding. seagulls are annoying");
 }
