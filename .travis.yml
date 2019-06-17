@@ -4,6 +4,8 @@ language:
 compiler:
   - gcc
   - clang
+before_install:
+  - pip install --user cpp-coveralls
 addons:
   apt:
     sources:
@@ -18,8 +20,10 @@ script:
   - if [ "$CXX" = "g++" ]; then export CXX=/usr/bin/g++-7; fi
   - mkdir build
   - cd build
-  - cmake ..
+  - cmake -E env CXXFLAGS="--enable-gcov" cmake ..
   - make
   - ./tracerz
   - cd ..
   - rm -R build
+after_success:
+  - coveralls --gcov-options '\-lp'
