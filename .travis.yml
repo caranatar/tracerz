@@ -28,9 +28,9 @@ script:
   - ls
   - cd tracerz.dir
   - ls
-  - cp *.gcno *.gcda ../../../
+  - cp *.gcno *.gcda *.o ../../../
   - cd ../../../
   - ls
 after_success:
-  - coveralls --exclude json --exclude Catch2 --gcov-options '\-lp'
+  - coveralls --verbose --exclude json --exclude Catch2 --gcov-options '\-lp'
   - ls
