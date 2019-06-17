@@ -27,4 +27,4 @@ script:
   - cp *.gcno *.gcda *.o ../../../
   - cd ../../../
 after_success:
-  - coveralls --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'
+  - coveralls --verbose --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'
