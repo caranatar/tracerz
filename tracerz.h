@@ -13,8 +13,6 @@
 #include "json.hpp"
 
 namespace tracerz {
-using json = nlohmann::json;
-
 namespace details {
 class ICallback {
 public:
@@ -358,7 +356,7 @@ public:
     return ret;
   }
 
-  void expandNode(const json &, std::mt19937 &, json &);
+  void expandNode(const nlohmann::json &, std::mt19937 &, nlohmann::json &);
 
   const std::string &getInput() const { return this->input; }
 
@@ -440,9 +438,9 @@ private:
   std::vector<std::string> modifiers;
 };
 
-void TreeNode::expandNode(const json &jsonGrammar,
+void TreeNode::expandNode(const nlohmann::json &jsonGrammar,
                           std::mt19937 &rng,
-                          json &runtimeDictionary) {
+                          nlohmann::json &runtimeDictionary) {
   if (this->isNodeExpanded()) return;
 
   if (details::containsOnlyRule(this->input)) {
@@ -517,7 +515,7 @@ void TreeNode::expandNode(const json &jsonGrammar,
                                          "$2");
 
     this->isNodeHidden_ = true;
-    json arr = json::array();
+    nlohmann::json arr = nlohmann::json::array();
     std::for_each(std::sregex_token_iterator(txt.begin(),
                                              txt.end(),
                                              details::getCommaRegex(),
@@ -568,7 +566,7 @@ void TreeNode::expandNode(const json &jsonGrammar,
 class Tree {
 public:
   Tree(const std::string &input,
-       const json &grammar,
+       const nlohmann::json &grammar,
        std::mt19937 rng = std::mt19937(time(0)))
       : leafIndex(new TreeNode), unexpandedLeafIndex(new TreeNode), root(new TreeNode(input)),
         nextUnexpandedLeaf(nullptr), jsonGrammar(grammar), rng(rng) {
@@ -660,15 +658,15 @@ private:
   std::shared_ptr<TreeNode> unexpandedLeafIndex;
   std::shared_ptr<TreeNode> root;
   std::shared_ptr<TreeNode> nextUnexpandedLeaf;
-  const json &jsonGrammar;
+  const nlohmann::json &jsonGrammar;
   std::mt19937 rng;
-  json runtimeDictionary;
+  nlohmann::json runtimeDictionary;
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
 
 class Grammar {
 public:
-  explicit Grammar(json grammar = "{}"_json,
+  explicit Grammar(nlohmann::json grammar = "{}"_json,
                    std::mt19937 _rng = std::mt19937(time(0)))
       : jsonGrammar(std::move(grammar)),
         rng(_rng) {
@@ -812,7 +810,7 @@ public:
   }
 
 private:
-  json jsonGrammar;
+  nlohmann::json jsonGrammar;
   std::mt19937 rng;
   details::callback_map_t modifierFunctions;
 };
