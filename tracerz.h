@@ -806,8 +806,7 @@ public:
     return this->modifierFunctions;
   }
 
-  std::string flatten(const std::string& input)
-  {
+  std::string flatten(const std::string& input) {
     auto tree = this->getTree(input);
     while(tree->expand(this->getModifierFunctions()));
     return tree->flatten(this->getModifierFunctions());

@@ -49,7 +49,8 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
       {"sOrigin", "#animal.s# eat #food.s#"},
       {"sOrigin2", "#animalX.s# eat #animalConsonantY.s# and #animalVowelY.s#"},
       {"sOrigin3", "people drive #vehicle.s#"},
-      {"edOrigin", "#verbS.ed# #verbE.ed# #verbH.ed# #verbX.ed# #verbConsonantY.ed# #verbVowelY.ed# #verb.ed#"}
+      {"edOrigin", "#verbS.ed# #verbE.ed# #verbH.ed# #verbX.ed# #verbConsonantY.ed# #verbVowelY.ed# #verb.ed#"},
+      {"replaceOrigin", "#anOrigin.replace(a,b)#"}
   };
   tracerz::Grammar zgr(mods);
   zgr.addModifiers(tracerz::Grammar::getBaseEngModifiers());
@@ -61,4 +62,5 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
   REQUIRE(zgr.flatten("#sOrigin2#") == "foxes eat guppies and monkeys");
   REQUIRE(zgr.flatten("#sOrigin3#") == "people drive cars");
   REQUIRE(zgr.flatten("#edOrigin#") == "passed replaced cashed boxed carried monkeyd handed");
+  REQUIRE(zgr.flatten("#replaceOrigin#") == "bn blbbtross bte b fish");
 }
