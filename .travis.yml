@@ -27,8 +27,4 @@ script:
   - cp *.gcno *.gcda *.o ../../../
   - cd ../../../
 after_success:
-  - echo "CC is $CC"
-  - echo "$CC"
-  - echo "TRAVIS_JOB_NUMBER is $TRAVIS_JOB_NUMBER"
-  - echo "$TRAVIS_JOB_NUMBER"
-  - coveralls --verbose --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'
+  - if [ "$CC" = "/usr/bin/gcc-7" ]; then coveralls --verbose --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'; fi
