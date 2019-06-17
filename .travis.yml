@@ -17,3 +17,7 @@ script:
   - export CXX=/usr/bin/g++-7
   - cmake .
   - make
+  - export CC=/usr/bin/clang
+  - export CXX=/usr/bin/clang++
+  - cmake .
+  - make
