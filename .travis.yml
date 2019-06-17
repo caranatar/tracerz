@@ -20,7 +20,7 @@ script:
   - if [ "$CXX" = "g++" ]; then export CXX=/usr/bin/g++-7; fi
   - mkdir build
   - cd build
-  - cmake -E env CXXFLAGS="--enable-gcov" cmake ..
+  - cmake -E env CXXFLAGS="-ftest-coverage" cmake ..
   - make
   - ./tracerz
   - cd ..
