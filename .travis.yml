@@ -26,4 +26,4 @@ script:
   - cd ..
   - rm -R build
 after_success:
-  - coveralls --gcov-options '\-lp'
+  - coveralls --exclude json --exclude Catch2 --gcov-options '\-lp'
