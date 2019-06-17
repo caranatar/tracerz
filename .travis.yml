@@ -32,5 +32,5 @@ script:
   - cd ../../../
   - ls
 after_success:
-  - coveralls --verbose --exclude json --exclude Catch2 --gcov-options '\-lp'
+  - coveralls --exclude build --exclude json --exclude Catch2 --gcov-options '\-lp'
   - ls
