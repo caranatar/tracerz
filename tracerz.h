@@ -212,8 +212,14 @@ bool containsParametricModifier(const std::string& input) {
 class TreeNode {
 public:
   TreeNode()
-      : input(), isNodeComplete_(false), isNodeExpanded_(false), prevLeaf(nullptr), nextLeaf(nullptr),
-        prevUnexpandedLeaf(nullptr), nextUnexpandedLeaf(nullptr), isNodeHidden_(false) {
+      : input()
+      , isNodeComplete_(false)
+      , isNodeExpanded_(false)
+      , prevLeaf(nullptr)
+      , nextLeaf(nullptr)
+      , prevUnexpandedLeaf(nullptr)
+      , nextUnexpandedLeaf(nullptr)
+      , isNodeHidden_(false) {
   }
 
   explicit TreeNode(const std::string& input,
@@ -221,10 +227,15 @@ public:
                     std::shared_ptr<TreeNode> next = nullptr,
                     std::shared_ptr<TreeNode> prevUnexpanded = nullptr,
                     std::shared_ptr<TreeNode> nextUnexpanded = nullptr)
-      : input(input), isNodeComplete_(!details::containsRule(input)
-                                      && !details::containsOnlyActions(input)), isNodeExpanded_(isNodeComplete_),
-        prevLeaf(std::move(prev)), nextLeaf(std::move(next)), prevUnexpandedLeaf(std::move(prevUnexpanded)),
-        nextUnexpandedLeaf(std::move(nextUnexpanded)), isNodeHidden_(false) {
+      : input(input)
+      , isNodeComplete_(!details::containsRule(input)
+                        && !details::containsOnlyActions(input))
+      , isNodeExpanded_(isNodeComplete_)
+      , prevLeaf(std::move(prev))
+      , nextLeaf(std::move(next))
+      , prevUnexpandedLeaf(std::move(prevUnexpanded))
+      , nextUnexpandedLeaf(std::move(nextUnexpanded))
+      , isNodeHidden_(false) {
   }
 
   virtual ~TreeNode() = default;
@@ -569,8 +580,11 @@ class Tree {
 public:
   Tree(const std::string& input,
        const nlohmann::json& grammar)
-      : leafIndex(new TreeNode), unexpandedLeafIndex(new TreeNode), root(new TreeNode(input)),
-        nextUnexpandedLeaf(nullptr), jsonGrammar(grammar) {
+      : leafIndex(new TreeNode)
+      , unexpandedLeafIndex(new TreeNode)
+      , root(new TreeNode(input))
+      , nextUnexpandedLeaf(nullptr)
+      , jsonGrammar(grammar) {
     this->root->setPrevLeaf(this->leafIndex);
     this->leafIndex->setNextLeaf(this->root);
 
@@ -782,8 +796,8 @@ class Grammar {
 public:
   explicit Grammar(nlohmann::json grammar = "{}"_json,
                    RNG _rng = RNG(time(nullptr)))
-      : jsonGrammar(std::move(grammar)),
-        rng(_rng) {
+      : jsonGrammar(std::move(grammar))
+      , rng(_rng) {
   }
 
   std::shared_ptr<Tree> getTree(const std::string& input) const {
