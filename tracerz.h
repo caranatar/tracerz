@@ -14,96 +14,161 @@
 
 namespace tracerz {
 namespace details {
-class ICallback {
+/**
+ * This interface represents a generic modifier function that takes an input string and 0 or more string params, and
+ * returns a string.
+ */
+class IModifierFn {
 public:
+  /**
+   * Calls the modifier function with the given info
+   *
+   * @param input the input string to modify
+   * @param params the addition params to pass into the function
+   * @return the modified input string
+   */
   virtual std::string callVec(const std::string& input, const std::vector<std::string>& params) = 0;
 
-  virtual ~ICallback() = default;
+  /**
+   * Default virtual destructor.
+   */
+  virtual ~IModifierFn() = default;
 };
 
-template<typename G, typename PT>
-std::string callg(G gFn, PT param) {
-  return gFn(param);
-}
-
-template<typename G, typename PT, typename... PTs>
-std::string callg(G gFn, PT param, PTs... params) {
-  return callg([&gFn, &param](PTs... params) {
-    return gFn(param, params...);
-  }, params...);
-}
-
-template<typename F, typename... PTs>
-std::string callf(F fun, const std::string& input, PTs... params) {
-  return callg([&input, &fun](PTs... params) {
-    return fun(input, params...);
-  }, params...);
-}
-
+/**
+ * Given a function that accepts a string input and at least one additional parameter, the static function of this class
+ * recursively unpacks a vector into a parameter pack, and then calls the given function on the input string and
+ * the parameter pack.
+ *
+ * @tparam N the number of items remaining in the vector
+ * @tparam F the type of the function to call on the unpacked parameters
+ * @tparam PTs a parameter pack of the types of the items already unpacked from the vector
+ */
 template<int N,
     typename F,
     typename... PTs>
-class CallVec {
+class CallVector_R {
 public:
-  static std::string callVec(F fun,
-                             const std::string& input,
-                             std::vector<std::string> paramVec,
-                             PTs... params) {
+  /**
+   * Unpacks the first parameter from the parameter vector, moves it to the parameter pack, and then recurses
+   *
+   * @param fun the function to ultimately call on the input and list of parameters
+   * @param input the input string to pass to `fun`
+   * @param paramVec the remaining parameters
+   * @param params the parameter pack of parameters that have been unpacked from the vector so far
+   * @return the result of calling `fun` on the input string with all parameters
+   */
+  static decltype(auto) callVec(F fun,
+                                const std::string& input,
+                                std::vector<std::string> paramVec,
+                                PTs... params) {
+    // Unpack the first parameter from the vector
     std::string param = paramVec[0];
+
+    // Create a vector containing the rest of the parameters
     std::vector<std::string> restOfVec(++paramVec.begin(), paramVec.end());
-    return CallVec<N - 1, F, const std::string&, PTs...>::callVec(fun,
-                                                                  input,
-                                                                  restOfVec,
-                                                                  params...,
-                                                                  param);
+
+    // Recurse, placing `param` at the end of the parameter pack
+    return CallVector_R<N - 1, F, const std::string&, PTs...>::callVec(fun,
+                                                                       input,
+                                                                       restOfVec,
+                                                                       params...,
+                                                                       param);
   }
 };
 
+/**
+ * The base case of CallVector_R, in which all parameters have been moved from the parameter vector into the parameter
+ * pack, and which calls the supplied function on the input string and parameter pack.
+ *
+ * @tparam F the type of the function to be called
+ * @tparam PTs a parameter pack of the types of the parameters to be passed, with the input string, into the function
+ */
 template<typename F,
     typename... PTs>
-class CallVec<0, F, PTs...> {
+class CallVector_R<0, F, PTs...> {
 public:
-  static std::string callVec(F fun,
-                             const std::string& input,
-                             const std::vector<std::string>&/*unused*/,
-                             PTs... params) {
-    return callf(fun, input, params...);
+  /**
+   * Calls the given function on the given input string and parameter pack
+   *
+   * @param fun the function to call
+   * @param input the input string
+   * @param params the parameter pack of the remaining parameters
+   * @return the result of calling `fun` on `params...`
+   */
+  static decltype(auto) callVec(F fun,
+                                const std::string& input,
+                                const std::vector<std::string>&/*unused*/,
+                                PTs... params) {
+    return fun(input, params...);
   }
 };
 
+/**
+ * This class provides a static function to call a given function with the given input string and the contents of a
+ * given parameter vector as parameters to the function
+ *
+ * @tparam N the number of parameters F takes, excluding the input string
+ * @tparam F the type of the function to be called on the supplied parameters
+ */
 template<int N, typename F>
-class CallVecF {
+class CallVector {
 public:
-  static std::string callVecF(F fun,
-                              const std::string& input,
-                              const std::vector<std::string>& params) {
+  /**
+   * Calls function `fun` with `input` and the contents of `params` as parameters
+   *
+   * @param fun the function to call
+   * @param input the input string
+   * @param params the remaining parameters
+   * @return the result of calling `fun(input, params...)`
+   */
+  static decltype(auto) callVec(F fun,
+                                const std::string& input,
+                                const std::vector<std::string>& params) {
+    // Peel off the first parameter
     std::string param = params[0];
+
+    // Create a vector of the remaining parameters
     std::vector<std::string> restOfParams(++params.begin(), params.end());
-    return CallVec<N - 1, F, const std::string&>::callVec(fun,
-                                                          input,
-                                                          restOfParams,
-                                                          param);
+
+    // Use CallVector_R to recurse over the remaining parameters
+    return CallVector_R<N - 1, F, const std::string&>::callVec(fun,
+                                                               input,
+                                                               restOfParams,
+                                                               param);
   }
 };
 
+/**
+ * Special case of CallVector for functions that only take a single input string
+ *
+ * @tparam F the type of the supplied function
+ */
 template<typename F>
-class CallVecF<0, F> {
+class CallVector<0, F> {
 public:
-  static std::string callVecF(F fun,
-                              const std::string& input,
-                              const std::vector<std::string>& /*unused*/) {
+  /**
+   * Calls `fun` on `input`
+   *
+   * @param fun the function to call
+   * @param input the input string
+   * @return the result of `fun(input)`
+   */
+  static decltype(auto) callVec(F fun,
+                                const std::string& input,
+                                const std::vector<std::string>& /*unused*/) {
     return fun(input);
   }
 };
 
 template<typename... Ts>
-class Callback : public ICallback {
+class ModifierFn : public IModifierFn {
 public:
-  explicit Callback(std::function<std::string(Ts...)> fun)
+  explicit ModifierFn(std::function<std::string(Ts...)> fun)
       : callback(std::move(fun)) {
   }
 
-  ~Callback() override = default;
+  ~ModifierFn() override = default;
 
   template<typename... PTs>
   std::string call(PTs... params) {
@@ -111,15 +176,15 @@ public:
   }
 
   std::string callVec(const std::string& input, const std::vector<std::string>& params) override {
-    return CallVecF<sizeof...(Ts) - 1,
-        decltype(this->callback)>::callVecF(this->callback, input, params);
+    return CallVector<sizeof...(Ts) - 1,
+        decltype(this->callback)>::callVec(this->callback, input, params);
   }
 
 private:
   std::function<std::string(Ts...)> callback;
 };
 
-typedef std::map<std::string, std::shared_ptr<ICallback>> callback_map_t;
+typedef std::map<std::string, std::shared_ptr<IModifierFn>> callback_map_t;
 
 const std::regex& getActionRegex() {
   static const std::regex rgx(R"(\[([^\]]*)\])");
@@ -682,7 +747,7 @@ private:
 
 const details::callback_map_t& getBaseEngModifiers() {
   static auto wrap = [](const std::function<std::string(const std::string&)>& fun) {
-    std::shared_ptr<details::ICallback> ptr(new details::Callback<const std::string&>(fun));
+    std::shared_ptr<details::IModifierFn> ptr(new details::ModifierFn<const std::string&>(fun));
     return ptr;
   };
   static details::callback_map_t baseMods;
@@ -780,7 +845,7 @@ const details::callback_map_t& getBaseEngModifiers() {
   });
 
   baseMods["replace"] =
-      std::shared_ptr<details::ICallback>(new details::Callback<const std::string&,
+      std::shared_ptr<details::IModifierFn>(new details::ModifierFn<const std::string&,
           const std::string&, const std::string&>([](const std::string& input,
                                                      const std::string& target,
                                                      const std::string& replacement) {
@@ -813,14 +878,14 @@ public:
   }
 
   void addModifier(const std::string& name,
-                   std::shared_ptr<details::ICallback> mod) {
+                   std::shared_ptr<details::IModifierFn> mod) {
     this->modifierFunctions[name] = std::move(mod);
   }
 
   template<typename... PTs>
   void addModifier(const std::string& name,
                    std::function<std::string(PTs...)> fun) {
-    std::shared_ptr<details::ICallback> fptr(new details::Callback<PTs...>(fun));
+    std::shared_ptr<details::IModifierFn> fptr(new details::ModifierFn<PTs...>(fun));
     this->addModifier(name, fptr);
   }
 
