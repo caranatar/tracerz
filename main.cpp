@@ -4,6 +4,59 @@
 
 #include "catch.hpp"
 
+/**
+ * Test class satisfying UniformRandomBitGenerator. Returns the value
+ * it was constructed with
+ */
+class TestRNG {
+public:
+  typedef int result_type;
+
+  TestRNG(const result_type& val, bool floppy = false)
+      : value(val)
+      , flippy(floppy) {
+  }
+
+  TestRNG(const TestRNG& t)
+      : value(t.value)
+      , flippy(t.flippy) {
+  }
+
+  result_type min() const {
+    return this->value;
+  }
+
+  result_type max() const {
+    return this->value;
+  }
+
+  result_type operator()() {
+    if (this->flippy) {
+      result_type ret = this->value;
+      this->value = (this->value + 1) % 2;
+      return ret;
+    }
+    return this->value;
+  }
+
+private:
+  result_type value;
+  bool flippy;
+};
+
+class TestDistribution {
+public:
+  typedef int result_type;
+
+  TestDistribution(result_type min, result_type max) {
+  }
+
+  template<typename RNG>
+  result_type operator()(RNG& rng) {
+    return rng();
+  }
+};
+
 TEST_CASE("Tree", "[tracerz]") {
   nlohmann::json oneSub = {
       {"rule", "output"}
@@ -165,4 +218,39 @@ TEST_CASE("Basic actions", "[tracerz]") {
   REQUIRE(zgr.flatten("#funOrigin#") == "key is whale dolphin is key2");
   zgr.addModifiers(tracerz::getBaseEngModifiers());
   REQUIRE(zgr.flatten("#deepOrigin#") == "key is seagulls are neat. just kidding. seagulls are annoying");
+}
+
+TEST_CASE("Custom rng", "[tracerz]") {
+  nlohmann::json grammar = {
+      {"rule", {"one",   "two"}},
+      {"dll",  "one"},
+      {"dlr",  "two"},
+      {"drl",  "three"},
+      {"drr",  "four"},
+      {"dl",   {"#dll#", "#dlr#"}},
+      {"dr",   {"#drl#", "#drr#"}},
+      {"deep", {"#dl#",  "#dr#"}}
+  };
+
+  SECTION("Left selection") {
+    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(0));
+    REQUIRE(zgr.flatten("#rule#") == "one");
+    REQUIRE(zgr.flatten("#deep#") == "one");
+  }
+
+  SECTION("Right selection") {
+    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(1));
+    REQUIRE(zgr.flatten("#rule#") == "two");
+    REQUIRE(zgr.flatten("#deep#") == "four");
+  }
+
+  SECTION("Left alternating selection") {
+    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(0, true));
+    REQUIRE(zgr.flatten("#deep#") == "two");
+  }
+
+  SECTION("Right alternating selection") {
+    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(1, true));
+    REQUIRE(zgr.flatten("#deep#") == "three");
+  }
 }
