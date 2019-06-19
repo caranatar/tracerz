@@ -367,7 +367,7 @@ public:
     return ret;
   }
 
-  template<typename RNG>
+  template<typename RNG, typename UniformIntDistributionT>
   void expandNode(const nlohmann::json&, RNG&, nlohmann::json&);
 
   const std::string& getInput() const { return this->input; }
@@ -450,7 +450,7 @@ private:
   std::vector<std::string> modifiers;
 };
 
-template<typename RNG>
+template<typename RNG, typename UniformIntDistributionT>
 void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
                           nlohmann::json& runtimeDictionary) {
@@ -485,7 +485,7 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     }
 
     if (ruleContents.is_array()) {
-      std::uniform_int_distribution<> dist(0, ruleContents.size() - 1);
+      UniformIntDistributionT dist(0, ruleContents.size() - 1);
       output = ruleContents[dist(rng)];
     }
 
@@ -594,15 +594,15 @@ public:
     }
   }
 
-  template<typename RNG>
+  template<typename RNG, typename UniformIntDistributionT>
   bool expand(const details::callback_map_t& modFuns, RNG& rng) {
     auto next = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
 
     this->expandingNodes.push(next);
 
-    next->expandNode(this->jsonGrammar,
-                     rng,
-                     this->runtimeDictionary);
+    next->expandNode<RNG, UniformIntDistributionT>(this->jsonGrammar,
+                                                   rng,
+                                                   this->runtimeDictionary);
 
     if (next->areChildrenComplete()) {
       auto poppedNode = this->expandingNodes.top();
@@ -791,7 +791,8 @@ const details::callback_map_t& getBaseEngModifiers() {
   return baseMods;
 }
 
-template<typename RNG = std::mt19937>
+template<typename RNG = std::mt19937,
+    typename UniformIntDistributionT = std::uniform_int_distribution<>>
 class Grammar {
 public:
   explicit Grammar(nlohmann::json grammar = "{}"_json,
@@ -829,7 +830,7 @@ public:
 
   std::string flatten(const std::string& input) {
     auto tree = this->getTree(input);
-    while (tree->expand(this->getModifierFunctions(), this->rng));
+    while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng));
     return tree->flatten(this->getModifierFunctions());
   }
 
