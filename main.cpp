@@ -120,7 +120,8 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
       {"sOrigin3",             "people drive #vehicle.s#"},
       {"edOrigin",             "#verbS.ed# #verbE.ed# #verbH.ed# #verbX.ed# #verbConsonantY.ed# #verbVowelY.ed# #verb.ed#"},
       {"replaceOrigin",        "#anOrigin.replace(a,b)#"},
-      {"capAllNumStartOrigin", "#numStart.capitalizeAll#"}
+      {"capAllNumStartOrigin", "#numStart.capitalizeAll#"},
+      {"chainedOrigin",        "#verbH.a.ed.capitalize# out"}
   };
   tracerz::Grammar zgr(mods);
   zgr.addModifiers(tracerz::getBaseEngModifiers());
@@ -134,6 +135,7 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
   REQUIRE(zgr.flatten("#edOrigin#") == "passed replaced cashed boxed carried monkeyd handed");
   REQUIRE(zgr.flatten("#replaceOrigin#") == "bn blbbtross bte b fish");
   REQUIRE(zgr.flatten("#capAllNumStartOrigin#") == "00flour From Italy");
+  REQUIRE(zgr.flatten("#chainedOrigin#") == "A cashed out");
 }
 
 TEST_CASE("Custom modifiers", "[tracerz]") {
