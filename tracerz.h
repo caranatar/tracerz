@@ -1,5 +1,9 @@
 #pragma once
 
+/**
+ * @file tracerz.h: a single-header, modern C++ port/extension of @galaxykate's tracery tool
+ */
+
 #include <cctype>
 #include <functional>
 #include <memory>
@@ -161,114 +165,387 @@ public:
   }
 };
 
+/**
+ * Encapsulates a modifier function taking one or more string inputs and returning a string. Provides two calling
+ * methods: a parameter pack of type Ts or a vector of strings with size equal to the number of parameters taken by the
+ * function.
+ *
+ * **Note**: there is no validation on the number of parameters in the vector.
+ *
+ * @tparam Ts parameter pack of the types of the parameters to the function
+ */
 template<typename... Ts>
 class ModifierFn : public IModifierFn {
 public:
+  /**
+   * Construct a ModifierFn for the given modifier function
+   * @param fun the modifier function
+   */
   explicit ModifierFn(std::function<std::string(Ts...)> fun)
       : callback(std::move(fun)) {
   }
 
+  /**
+   * Default virtual copy constructor.
+   */
   ~ModifierFn() override = default;
 
+  /**
+   * Calls the encapsulated function with the given parameter pack
+   *
+   * @tparam PTs the parameter pack of param types
+   * @param params the parameters to pass to the function
+   * @return the result of calling the function on the parameters
+   */
   template<typename... PTs>
   std::string call(PTs... params) {
     return callf(this->callback, params...);
   }
 
+  /**
+   * Calls the encapsulated function with the given intut string and the given vector of params, unpacked to type `PTs...`
+   *
+   * **NOTE**: there is no checking on the size of vector
+   *
+   * @param input the input string to the modifier
+   * @param params the vector of parameters to pass to the encapsulated function
+   * @return the result of calling the function on the parameters
+   */
   std::string callVec(const std::string& input, const std::vector<std::string>& params) override {
-    return CallVector<sizeof...(Ts) - 1,
-        decltype(this->callback)>::callVec(this->callback, input, params);
+    return CallVector<sizeof...(Ts) - 1, decltype(this->callback)>::callVec(this->callback, input, params);
   }
 
 private:
+  /** The encapsulated function */
   std::function<std::string(Ts...)> callback;
 };
 
+/** Represents a mapping of modifier names to modifier functions */
 typedef std::map<std::string, std::shared_ptr<IModifierFn>> callback_map_t;
 
+/**
+ * Returns the action regular expression
+ *
+ * An action is defined as follows:
+ *   An open bracket: [
+ *   Followed by zero or more non-close bracket characters
+ *   A close bracket: ]
+ *
+ * It has one capture group: the entire contents of the bracketed characters
+ *
+ * @return the regex
+ */
 const std::regex& getActionRegex() {
   static const std::regex rgx(R"(\[([^\]]*)\])");
   return rgx;
 }
 
+/**
+ * Gets a comma regex (to make splitting on commas into a container with iterators easy)
+ *
+ * It's literally just a comma
+ *
+ * It contains no capture group.
+ *
+ * @return the regex
+ */
 const std::regex& getCommaRegex() {
   static const std::regex rgx(",");
   return rgx;
 }
 
+/**
+ * Gets a basic modifier regex.
+ *
+ * It consists of the following:
+ *   A dot: .
+ *   Followed by one or more not dots
+ *
+ * It has one capture group: the non-dot matching characters
+ *
+ * @return the regex
+ */
 const std::regex& getModifierRegex() {
-  static const std::regex rgx(".([^.]+)");
+  static const std::regex rgx(R"(\.([^\.]+))");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only tracery action groups
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   One or more of the non-capturing group:
+ *     An opening bracket: [
+ *     Zero or more non-close brackets
+ *     A closing bracket: ]
+ *   The end of a line
+ *
+ * It contains no capture group.
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyActionsRegex() {
+  // (?: ... ) is a non-capturing group
   static const std::regex rgx(R"(^(?:\[[^\]]*\])+$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only an action that sets a key to plain text
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   An opening bracket: [
+ *   One or more alpha numeric characters (representing a key name)
+ *   A colon: :
+ *   One or more non-# and non-] characters
+ *   A closing bracket: ]
+ *   The end of a line
+ *
+ * It contains two capture groups:
+ *   The key name (the alphanumeric characters before the colon)
+ *   The plain text value (the characters between the colon and the closing bracket)
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyKeyWithTextActionRegex() {
   static const std::regex rgx(R"(^\[([[:alnum:]]+):([^#\]]+)\]$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only an action group that sets a key to the result of a rule with
+ * zero or more modifiers
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   An opening bracket: [
+ *   One or more alphanumeric characters, representing a key name
+ *   A colon: :
+ *   An octothorpe: #
+ *   One or more alphanumeric characters, representing a rule name
+ *   Zero or more of the non-capturing group, each representing a modifier:
+ *     A dot: .
+ *     One or more non-#, non-. characters
+ *   An octothorpe: #
+ *   A closing bracket: ]
+ *   The end of a line
+ *
+ * It contains two capture groups:
+ *   The key name
+ *   The rule and optional modifiers, including surrounding octothorpes
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyKeyWithRuleActionRegex() {
   static const std::regex rgx(R"(^\[([[:alnum:]]+):(#[[:alnum:]]+(?:\.[^.#]+)*#)\]$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only an action group that does not set a key. These action groups
+ * contain one rule, possibly with modifiers. Usually these rules create keys themselves, acting as a kind of
+ * function within the language.
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   An opening bracket: [
+ *   An octothorpe: #
+ *   One or more alphanumeric characters, representing a rule name
+ *   Zero or more of the non-capturing group, each representing a modifier:
+ *     A dot: .
+ *     One or more non-#, non-. characters
+ *   An octothorpe: #
+ *   A closing bracket: ]
+ *   The end of a line
+ *
+ * It contains one capture groups: the rule and optional modifiers, including surrounding octothorpes
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyKeylessRuleActionRegex() {
   static const std::regex rgx(R"(^\[(#[[:alnum:]]+(?:\.[^.#]+)*#)\]$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only a rule with an optional set of modifiers
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   An octothorpe: #
+ *   One or more alphanumeric characters, representing a rule name
+ *   Zero or more of the non-capturing group, each representing a modifier:
+ *     A dot: .
+ *     One or more non-#, non-. characters
+ *   An octothorpe: #
+ *   The end of a line
+ *
+ * It contains two capture groups:
+ *   The rule name
+ *   The string of all characters representing zero or more modifiers (possibly empty)
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyRuleRegex() {
   static const std::regex rgx(R"(^#([[:alnum:]]+)((?:\.[^.#]+)*)#$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match iff the input contains only a rule with at least one action and an optional set of
+ * modifiers
+ *
+ * It consists of the following:
+ *   The beginning of a line
+ *   An octothorpe: #
+ *   One or more of the non-capturing group, each representing an action group:
+ *     An opening bracket: [
+ *     Zero or more characters
+ *     A closing bracket: ]
+ *   One or more alphanumeric characters, representing a rule name
+ *   Zero or more of the non-capturing group, each representing a modifier:
+ *     A dot: .
+ *     One or more non-#, non-. characters
+ *   An octothorpe: #
+ *   The end of a line
+ *
+ * It contains three capture groups:
+ *   The string of all characters representing the one or more action groups
+ *   The rule name
+ *   The string of all characters representing zero or more modifiers (possibly empty)
+ *
+ * @return the regex
+ */
 const std::regex& getOnlyRuleWithActionsRegex() {
   static const std::regex rgx(R"(^#((?:\[.*\])+)([[:alnum:]]+)((?:\.[^.#]+)*)#$)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match if the input contains a rule with an optional action and an optional set of modifiers.
+ *
+ * It consists of the following:
+ *   An octothorpe: #
+ *   Zero or more of the non-capturing group, each representing an action group:
+ *     An opening bracket: [
+ *     Zero or more characters
+ *     A closing bracket: ]
+ *   One or more alphanumeric characters, representing a rule name
+ *   Zero or more of the non-capturing group, each representing a modifier:
+ *     A dot: .
+ *     One or more non-#, non-. characters
+ *   An octothorpe: #
+ *
+ * It contains three capture groups:
+ *   The string of all characters representing the one or more action groups
+ *   The rule name
+ *   The string of all characters representing zero or more modifiers (possibly empty)
+ *
+ * @return the regex
+ */
 const std::regex& getRuleRegex() {
   static const std::regex rgx(R"(#(?:\[.*\])*([[:alnum:]]+)((?:\.[^.#]+)*)#)");
   return rgx;
 }
 
+/**
+ * Gets a regex that will match if the string contains
+ *
+ * It consists of the following:
+ *   One or more non-opening parentheses characters
+ *   An open parentheses: (
+ *   Zero or more non-closing parentheses
+ *   A close parentheses: )
+ *
+ * It contains two capture groups:
+ *   The characters before the open parentheses, representing the modifier name
+ *   The characters between the parentheses, representing the parameter list
+ *
+ * @return the regex
+ */
 const std::regex& getParametricModifierRegex() {
   static const std::regex rgx(R"(([^\(]+)\(([^\)]*)\))");
   return rgx;
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getRuleRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsRule(const std::string& input) {
   return std::regex_search(input, details::getRuleRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyActionsRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyActions(const std::string& input) {
   return std::regex_match(input, details::getOnlyActionsRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyKeylessRuleActionRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyKeylessRuleAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeylessRuleActionRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyKeyWithTextActionRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyKeyWithTextAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeyWithTextActionRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyKeyWithRuleActionRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyKeyWithRuleAction(const std::string& input) {
   return std::regex_match(input, details::getOnlyKeyWithRuleActionRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyRuleRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyRule(const std::string& input) {
   return std::regex_match(input, details::getOnlyRuleRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyRuleWithActionsRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsOnlyRuleWithActions(const std::string& input) {
   return std::regex_match(input, details::getOnlyRuleWithActionsRegex());
 }
 
+/**
+ * True if the input contains a match for the regex returned by @see tracerz::details::getOnlyParametricModifierRegex()
+ *
+ * @param input the input string to test
+ * @return true if the input contains a match
+ */
 bool containsParametricModifier(const std::string& input) {
   return std::regex_match(input, details::getParametricModifierRegex());
 }
