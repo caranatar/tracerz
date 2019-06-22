@@ -1178,8 +1178,19 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     this->nextUnexpandedLeaf->prevUnexpandedLeaf = this->prevUnexpandedLeaf;
 }
 
+/**
+ * Represents a partially or fully constructed parse tree. Maintains two linked list heads for indexing into the tree:
+ * one for the first leaf and the other for the first unexpanded leaf. Also provides methods to expand nodes and flatten
+ * the tree into a single output string.
+ */
 class Tree {
 public:
+  /**
+   * Creates a new input tree rooted with the given input string, using the given grammar.
+   *
+   * @param input the input string to construct the tree from
+   * @param grammar the grammar to use to construct the tree
+   */
   Tree(const std::string& input,
        const nlohmann::json& grammar)
       : leafIndex(new TreeNode)
@@ -1187,122 +1198,231 @@ public:
       , root(new TreeNode(input))
       , nextUnexpandedLeaf(nullptr)
       , jsonGrammar(grammar) {
+    // Insert the root at the beginning of the leaf linked list, after the head
     this->root->setPrevLeaf(this->leafIndex);
     this->leafIndex->setNextLeaf(this->root);
 
+    // If the node is not complete, add it after the head of the unexpanded leaf linked list
     if (!this->root->isNodeComplete()) {
       this->unexpandedLeafIndex->setNextUnexpandedLeaf(this->root);
       this->root->setPrevUnexpandedLeaf(this->unexpandedLeafIndex);
     }
   }
 
+  /**
+   * Expands the next unexpanded node, depth-first.
+   *
+   * @tparam RNG the type of the random number generator
+   * @tparam UniformIntDistributionT the type of the equal probability distribution
+   * @param modFuns the map of modifier names to functions
+   * @param rng the random number generator
+   * @return true if there is still at least one unexpanded node
+   */
   template<typename RNG, typename UniformIntDistributionT>
   bool expand(const details::callback_map_t& modFuns, RNG& rng) {
+    // Get the leftmost unexpanded leaf
     auto next = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
 
+    // Push it onto the stack of nodes currently being expanded
     this->expandingNodes.push(next);
 
+    // Expand the node
     next->expandNode<RNG, UniformIntDistributionT>(this->jsonGrammar,
                                                    rng,
                                                    this->runtimeDictionary);
 
+    // If the node has no children awaiting expansion
     if (next->areChildrenComplete()) {
+      // Save and pop the top node off the stack
       auto poppedNode = this->expandingNodes.top();
       this->expandingNodes.pop();
+
+      // Check if it has a key name
       if (poppedNode->getKeyName()) {
+        // If so, get it
         std::string key = *poppedNode->getKeyName();
+
+        // Flatten the subtree to get the value of the key
         std::string value = poppedNode->flatten(modFuns, false);
+
+        // Set the key in the runtime grammar
         this->runtimeDictionary[key] = value;
       }
 
+      // Keep going if there are other nodes we were expanding
       bool shouldContinue = !this->expandingNodes.empty();
       while (shouldContinue) {
+        // Peek at the top of the stack
         auto newTop = this->expandingNodes.top();
+
+        // If newTop's last expandable child is equal to the previously popped node, then newTop is also finished
+        // expanding.
         if (newTop->getLastExpandableChild() == poppedNode) {
-          // yes, pop and continue looking
+          // Rotate newTop to poppedNode
           poppedNode = newTop;
+
+          // Remove the top of the stack
           this->expandingNodes.pop();
+
+          // If there are still nodes in the stack, keep looking
           shouldContinue = !this->expandingNodes.empty();
+
+          // Check if the poppedNode has a key name
           if (poppedNode->getKeyName()) {
+            // If so, get it.
             std::string key = *poppedNode->getKeyName();
+
+            // Flatten the subtree to get the value of the key
             std::string value = poppedNode->flatten(modFuns, false);
+
+            // Set the key in the runtime grammar
             this->runtimeDictionary[key] = value;
           }
         } else {
+          // poppedNode is not the last expandable child of newTop. There are still more children to expand, so we can
+          // stop examining the stack.
           shouldContinue = false;
         }
       }
     }
 
+    // Return true if there are still nodes to expand
     return this->unexpandedLeafIndex->hasNextUnexpandedLeaf();
   }
 
+  /**
+   * Expand the tree in a breadth-first manner.
+   *
+   * @tparam RNG the type of the random number generator
+   * @param rng the random number generator
+   * @return true if there are still unexpanded nodes
+   */
   template<typename RNG>
   bool expandBF(RNG& rng) {
+    // If the pointer to the next unexpanded leaf is null
     if (!this->nextUnexpandedLeaf) {
+      // But the unexpanded leaf linked list is not empty
       if (this->unexpandedLeafIndex->hasNextUnexpandedLeaf()) {
+        // Then start at the beginning of the linked list
         this->nextUnexpandedLeaf = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
       } else {
+        // If the linked list is also empty, the tree is fully expanded
         return false;
       }
     }
 
+    // Get the next unexpanded leaf
     std::shared_ptr<TreeNode> next = this->nextUnexpandedLeaf->getNextUnexpandedLeaf();
+
+    // Expand the current unexpanded leaf
     this->nextUnexpandedLeaf->expandNode(this->jsonGrammar,
                                          rng,
                                          this->runtimeDictionary);
+
+    // Update the cursor
     this->nextUnexpandedLeaf = next;
 
+    // Return true since there are unexpanded leaves
     return true;
   }
 
+  /**
+   * Gets the current leftmost leaf of the tree.
+   *
+   * @return the current leftmost leaf of the tree
+   */
   std::shared_ptr<TreeNode> getFirstLeaf() const {
     return this->leafIndex->getNextLeaf();
   }
 
+  /**
+   * Gets the leftmost unexpanded leaf of the tree.
+   *
+   * @return the leftmost unexpanded leaf of the tree
+   */
   std::shared_ptr<TreeNode> getFirstUnexpandedLeaf() const {
     return this->unexpandedLeafIndex->getNextUnexpandedLeaf();
   }
 
+  /**
+   * Gets the root of the tree.
+   *
+   * @return the root of the tree
+   */
   std::shared_ptr<TreeNode> getRoot() const { return this->root; }
 
+  /**
+   * Flatten the tree into a single output string, based on the given input.
+   *
+   * @param modFuns the map of modifier names to functions to use
+   * @param ignoreHidden if true, hidden nodes will not be included in the output
+   * @param ignoreMods if true, no modifiers will be applied
+   * @return the flattened output string
+   */
   std::string flatten(details::callback_map_t modFuns,
                       bool ignoreHidden = true,
                       bool ignoreMods = false) {
+    // Forward the call to the root of the tree
     return this->root->flatten(std::move(modFuns), ignoreHidden, ignoreMods);
   }
 
 private:
+  /** Points to the leftmost leaf of the tree */
   std::shared_ptr<TreeNode> leafIndex;
+
+  /** Points to the leftmost unexpanded leaf */
   std::shared_ptr<TreeNode> unexpandedLeafIndex;
+
+  /** The root of the tree */
   std::shared_ptr<TreeNode> root;
+
+  /** Points to the current node to expand for breadth-first expansion */
   std::shared_ptr<TreeNode> nextUnexpandedLeaf;
+
+  /** The input grammar */
   const nlohmann::json& jsonGrammar;
+
+  /** The runtime grammar, consisting of keys created while expanding the tree with the input grammar. */
   nlohmann::json runtimeDictionary;
+
+  /** A stack of nodes currently being expanded by the depth-first expansion */
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
 
+/**
+ * Gets the set of base english modifiers, as defined by galaxykate's tracery
+ *
+ * @return a map of the names of the modifiers to functions
+ */
 const details::callback_map_t& getBaseEngModifiers() {
+  // Wraps a function in a shared_ptr to a ModifierFn object and returns it
   static auto wrap = [](const std::function<std::string(const std::string&)>& fun) {
     std::shared_ptr<details::IModifierFn> ptr(new details::ModifierFn<const std::string&>(fun));
     return ptr;
   };
+
+  // Defines the map
   static details::callback_map_t baseMods;
 
+  // Helper function returning true if the character is a vowel
   static auto isVowel = [](char letter) {
     char lower = tolower(letter);
     return (lower == 'a') || (lower == 'e') ||
            (lower == 'i') || (lower == 'o') ||
            (lower == 'u');
   };
+
+  // Helper function returning true if the character is alphanumeric
   static auto isAlphaNum = [](char chr) {
     return ((chr >= 'a' && chr <= 'z') ||
             (chr >= 'A' && chr <= 'Z') ||
             (chr >= '0' && chr <= '9'));
   };
 
+  // If baseMods isn't empty, then it's already been created. Return it.
   if (!baseMods.empty()) return baseMods;
 
+  // "a" adds an "a" or "an" to the beginning of a string, as appropriate
   baseMods["a"] = wrap([](const std::string& input) {
     if (input.empty()) return input;
 
@@ -1319,6 +1439,8 @@ const details::callback_map_t& getBaseEngModifiers() {
 
     return "a " + input;
   });
+
+  // "capitalizeAll" capitalizes the first character of every word of a string
   baseMods["capitalizeAll"] = wrap([](const std::string& input) {
     std::string ret;
     bool capNext = true;
@@ -1339,11 +1461,15 @@ const details::callback_map_t& getBaseEngModifiers() {
 
     return ret;
   });
+
+  // "capitalize" capitalizes the first character of the input string
   baseMods["capitalize"] = wrap([](const std::string& input) {
     std::string ret = input;
     ret[0] = toupper(ret[0]);
     return ret;
   });
+
+  // "s" pluralizes the input string based on the end of the string
   baseMods["s"] = wrap([](const std::string& input) {
     switch (input.back()) {
       case 's':
@@ -1361,6 +1487,8 @@ const details::callback_map_t& getBaseEngModifiers() {
         return input + "s";
     }
   });
+
+  // "ed" makes a verb past tense based on the end of the input string
   baseMods["ed"] = wrap([](const std::string& input) {
     switch (input.back()) {
       case 's':
@@ -1381,6 +1509,8 @@ const details::callback_map_t& getBaseEngModifiers() {
     }
   });
 
+  // "replace" is a parametric modifier that takes two parameters when used: a & b. It replaces all ocurrences of a in
+  // the input string with b
   baseMods["replace"] =
       std::shared_ptr<details::IModifierFn>(new details::ModifierFn<const std::string&,
           const std::string&, const std::string&>([](const std::string& input,
@@ -1390,6 +1520,8 @@ const details::callback_map_t& getBaseEngModifiers() {
                                   std::regex(target),
                                   replacement);
       }));
+
+  // Return the map
   return baseMods;
 }
 
