@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file tracerz.h: a single-header, modern C++ port/extension of @galaxykate's tracery tool
+ * @file tracerz.h tracerz.h: a single-header, modern C++ port/extension of @galaxykate's tracery tool
  */
 
 #include <cctype>
@@ -551,12 +551,19 @@ bool containsParametricModifier(const std::string& input) {
 }
 } // End namespace details
 
+/**
+ * Represents a single node in the parse tree
+ *
+ * TODO: enumerate node types
+ */
 class TreeNode {
 public:
+  /**
+   * Default constructor. Contains no input, used by the tree to point to certain nodes within the tree, from outside it
+   */
   TreeNode()
       : input()
       , isNodeComplete_(false)
-      , isNodeExpanded_(false)
       , prevLeaf(nullptr)
       , nextLeaf(nullptr)
       , prevUnexpandedLeaf(nullptr)
@@ -564,6 +571,16 @@ public:
       , isNodeHidden_(false) {
   }
 
+  /**
+   * Constructs a new tree node from the given parameters. The only required parameter is the input string, all others
+   * default to nullptr
+   *
+   * @param input the input string
+   * @param prev the leaf prior to this leaf
+   * @param next the next leaf from this leaf
+   * @param prevUnexpanded the unexpanded leaf prior to this unexpanded leaf
+   * @param nextUnexpanded the next unexpanded leaf from this unexpanded leaf
+   */
   explicit TreeNode(const std::string& input,
                     std::shared_ptr<TreeNode> prev = nullptr,
                     std::shared_ptr<TreeNode> next = nullptr,
@@ -572,7 +589,6 @@ public:
       : input(input)
       , isNodeComplete_(!details::containsRule(input)
                         && !details::containsOnlyActions(input))
-      , isNodeExpanded_(isNodeComplete_)
       , prevLeaf(std::move(prev))
       , nextLeaf(std::move(next))
       , prevUnexpandedLeaf(std::move(prevUnexpanded))
@@ -580,35 +596,55 @@ public:
       , isNodeHidden_(false) {
   }
 
+  /**
+   * Default virtual destructor
+   */
   virtual ~TreeNode() = default;
 
+  /**
+   * Creates a new TreeNode from the given input string and adds it as a child to this node.
+   *
+   * @param inputStr the input string
+   */
   void addChild(const std::string& inputStr) {
     std::shared_ptr<TreeNode> prev = nullptr;
     std::shared_ptr<TreeNode> next = nullptr;
     if (this->children.empty()) {
+      // If there are no children, then the previous and next leaves are the ones of this node
       prev = this->prevLeaf;
       next = this->nextLeaf;
     } else {
+      // If there are children, the new node's previous leaf is the last child and its next leaf is the one of this node
       prev = this->children.back();
       next = prev->nextLeaf;
     }
 
+    // Create the child with the input string, previous leaf, and next leaf
     std::shared_ptr<TreeNode> child(new TreeNode(inputStr,
                                                  prev,
                                                  next));
+
+    // If the child's previous leaf is not null, set its next leaf to the new node
     if (child->prevLeaf)
       child->prevLeaf->nextLeaf = child;
 
+    // If the child's next leaf is not null, set its previous leaf to the new node
     if (child->nextLeaf)
       child->nextLeaf->prevLeaf = child;
 
-    if (!child->isNodeExpanded()) {
+    // If this new child is not complete, set its previous and next unexpanded leaves
+    if (!child->isNodeComplete()) {
       std::shared_ptr<TreeNode> prevUnexpanded = nullptr;
       std::shared_ptr<TreeNode> nextUnexpanded = nullptr;
+
       if (this->prevUnexpandedLeaf) {
+        // If this leaf has a previous unexpanded leaf, then this is its first expansion. Set the child's previous and
+        // next unexpanded leaves to this one's.
         prevUnexpanded = this->prevUnexpandedLeaf;
         nextUnexpanded = this->nextUnexpandedLeaf;
       } else if (!this->children.empty()) {
+        // If this node has children, get the last child *C* with a previous unexpanded leaf, set the new child's
+        // previous unexpanded leaf to *C*, and set the new child's next unexpanded leaf to *C*'s next unexpanded node.
         for (auto i = this->children.rbegin();
              i != this->children.rend();
              i++) {
@@ -620,28 +656,46 @@ public:
         }
       }
 
+      // Set the child object's previous and next unexpanded leaves
       child->prevUnexpandedLeaf = prevUnexpanded;
       child->nextUnexpandedLeaf = nextUnexpanded;
+
+      // If the child's previous unexpanded leaf is not null, set its next unexpanded leaf to the new child
       if (child->prevUnexpandedLeaf)
         child->prevUnexpandedLeaf->nextUnexpandedLeaf = child;
+
+      // If the child's next unexpanded leaf is not null, set its previous unexpanded leaf to the new child
       if (child->nextUnexpandedLeaf)
         child->nextUnexpandedLeaf->prevUnexpandedLeaf = child;
 
-      // This is no longer part of the chain of unexpanded leaves
+      // This node has been at least partially expanded and is no longer part of the chain of unexpanded leaves
       this->prevUnexpandedLeaf = this->nextUnexpandedLeaf = nullptr;
     }
 
+    // If this is a hidden node, hide the child
     child->isNodeHidden_ = this->isNodeHidden_;
+
+    // Add the child to the list of children
     this->children.push_back(child);
 
-    // This is no longer a leaf
+    // This is no longer a leaf, unset its previous and next leaves
     this->prevLeaf = this->nextLeaf = nullptr;
   }
 
+  /**
+   * Returns true if this node has children nodes
+   *
+   * @return true if this node has children nodes
+   */
   bool hasChildren() const {
     return !this->children.empty();
   }
 
+  /**
+   * Returns true if every child of this node is complete, or there are no children
+   *
+   * @return true if every child of this node is complete, or there are no children
+   */
   bool areChildrenComplete() const {
     for (auto& child : this->children) {
       if (!child->isNodeComplete()) return false;
@@ -649,37 +703,60 @@ public:
     return true;
   }
 
+  /**
+   * Gets the last child of this node that is unexpanded
+   *
+   * @return the last child of this node that is unexpanded
+   */
   std::shared_ptr<TreeNode> getLastExpandableChild() const {
     for (auto riter = this->children.rbegin();
          riter != this->children.rend();
          riter++) {
+      // If this child is not complete, return it
       if (!(*riter)->isNodeComplete()) return *riter;
     }
 
+    // No expandable child found, return nullptr
     return nullptr;
   }
 
+  /**
+   * Flattens the sub-tree represented by this node and its descendents into a single string representation, using the
+   * given modifier map to handle any modifiers (if applicable).
+   *
+   * @param modFuns the modifier function map
+   * @param ignoreHidden exclude hidden subtrees from the flattened string
+   * @param ignoreModifiers if true, modifier functions will not be called
+   * @return the flattened string representation
+   */
   std::string flatten(details::callback_map_t modFuns,
                       bool ignoreHidden = true,
                       bool ignoreModifiers = false) {
     if (!(this->modifiers.empty() || ignoreModifiers)) {
+      // If this node has modifiers and ignoreModifiers is not true, then we need to apply modifiers. First we get the
+      // flattened string representation without calling modifiers
       std::string output = this->flatten(modFuns, ignoreHidden, true);
-      if (output.empty()) return "";
+
+      // If the output is empty at this point, then return the empty string
+      if (output.empty()) return output;
+
+      // Loop over each modifier being applied to this node
       for (auto& mod : this->modifiers) {
-        std::vector<std::string> params;
+        std::vector<std::string> params; // Starts empty, may be filled if this is a parametric modifier
         std::string modName = mod;
 
         if (details::containsParametricModifier(mod)) {
-          // $1 name
+          // If it contains a modifier that takes parameters, we need to handle those. First extract the modifier name
+          // from the first capture group of this regex
           modName = std::regex_replace(mod,
                                        details::getParametricModifierRegex(),
                                        "$1");
-          // $2 params
+          // Get the string representing the list of params from the second capture group
           std::string paramsStr = std::regex_replace(mod,
                                                      details::getParametricModifierRegex(),
                                                      "$2");
 
-          // use comma regex to separate params and fill params vector
+          // Use comma regex to separate params and fill params vector
           std::copy(std::sregex_token_iterator(paramsStr.begin(),
                                                paramsStr.end(),
                                                details::getCommaRegex(),
@@ -689,117 +766,246 @@ public:
         }
 
         if (modFuns.find(modName) != modFuns.end()) {
+          // If the modifier name names a real modifier, call it with the input string and parameters (if any), and
+          // update the output string.
           output = modFuns[modName]->callVec(output, params);
         }
       }
+
+      // Return the modified string
       return output;
     }
 
+    // If this doesn't have children...
     if (!this->hasChildren()) {
+      // Then if the node is hidden and we are ignoring hidden nodes...
       if (ignoreHidden && this->isNodeHidden()) {
+        // Return an empty string, since it's ignored
         return "";
       }
+
+      // Node isn't hidden, return its input string
       return this->input;
     }
 
+    // This node has children and isn't hidden, flatten and assemble the output of all its children
     std::string ret;
     for (auto& child : this->children) {
+      // We can't ignore modifiers, because we will get the wrong output from flattening our children if we do.
       ret += child->flatten(modFuns, ignoreHidden, false);
     }
+
+    // Return the flattened children's string
     return ret;
   }
 
   template<typename RNG, typename UniformIntDistributionT>
   void expandNode(const nlohmann::json&, RNG&, nlohmann::json&);
 
+  /**
+   * Gets the input string for this node
+   *
+   * @return the input string for this node
+   */
   const std::string& getInput() const { return this->input; }
 
+  /**
+   * Gets the next leaf (if applicable). If this is the last leaf or if this node is not a leaf, will return nullptr.
+   *
+   * @return the next leaf (if applicable)
+   */
   std::shared_ptr<TreeNode> getNextLeaf() const {
     return this->nextLeaf;
   }
 
+  /**
+   * Gets the next unexpanded leaf (if applicable). If this is the last unexpanded leaf, is partiall or fully expanded,
+   * or is not a leaf, will return nullptr.
+   *
+   * @return the next unexpanded leaf (if applicable)
+   */
   std::shared_ptr<TreeNode> getNextUnexpandedLeaf() const {
     return this->nextUnexpandedLeaf;
   }
 
+  /**
+   * Gets the previous leaf (if applicable). If this node is not a leaf, will return nullptr.
+   *
+   * @return the previous leaf (if applicable)
+   */
   std::shared_ptr<TreeNode> getPrevLeaf() const {
     return this->prevLeaf;
   }
 
+  /**
+   * Gets the previous unexpanded leaf (if applicable). If this is partially or fully expanded, or is not a leaf, this
+   * will return nullptr.
+   *
+   * @return the previous unexpanded leaf (if applicable)
+   */
   std::shared_ptr<TreeNode> getPrevUnexpandedLeaf() const {
     return this->prevUnexpandedLeaf;
   }
 
+  /**
+   * Returns true if this node has a next unexpanded leaf
+   *
+   * @return true if this node has a next unexpanded leaf
+   */
   bool hasNextUnexpandedLeaf() const {
     return this->nextUnexpandedLeaf ? true : false;
   }
 
+  /**
+   * Returns true if this node has a previous unexpanded leaf
+   *
+   * @return true if this node has a previous unexpanded leaf
+   */
   bool hasPrevUnexpandedLeaf() const {
     return this->prevUnexpandedLeaf ? true : false;
   }
 
+  /**
+   * Returns true if this node is complete (cannot be expanded)
+   *
+   * @return true if this node is complete (cannot be expanded)
+   */
   bool isNodeComplete() const { return this->isNodeComplete_; }
 
-  bool isNodeExpanded() const { return this->isNodeExpanded_; }
-
+  /**
+   * Sets the next leaf
+   *
+   * @param next the next leaf
+   */
   void setNextLeaf(std::shared_ptr<TreeNode> next) {
     this->nextLeaf = std::move(next);
   }
 
+  /**
+   * Sets the next unexpanded leaf
+   *
+   * @param next the next unexpanded leaf
+   */
   void setNextUnexpandedLeaf(std::shared_ptr<TreeNode> next) {
     this->nextUnexpandedLeaf = std::move(next);
   }
 
+  /**
+   * Sets the previous leaf
+   *
+   * @param next the previous leaf
+   */
   void setPrevLeaf(std::shared_ptr<TreeNode> prev) {
     this->prevLeaf = std::move(prev);
   }
 
+  /**
+   * Sets the previous unexpanded leaf
+   *
+   * @param next the previous unexpanded leaf
+   */
   void setPrevUnexpandedLeaf(std::shared_ptr<TreeNode> prev) {
     this->prevUnexpandedLeaf = std::move(prev);
   }
 
+  /**
+   * Marks this node has having a key with the given name, which will be set to the result of flattening this node and
+   * stored in the runtime grammar.
+   *
+   * @param next the key name
+   */
   void setKeyName(std::optional<std::string> key) {
     this->keyName = std::move(key);
   }
 
+  /**
+   * Gets the key name or nothing, if it doesn't have one
+   *
+   * @return the key name or std::nullopt
+   */
   std::optional<std::string> getKeyName() const {
     return this->keyName;
   }
 
+  /**
+   * Returns true if this node is hidden
+   *
+   * @return true if this node is hidden
+   */
   bool isNodeHidden() const {
     return this->isNodeHidden_;
   }
 
+  /**
+   * Adds a modifier with the given name to this node's list of modifiers
+   *
+   * @param mod the name of the modifier to add
+   */
   void addModifier(const std::string& mod) {
     this->modifiers.push_back(mod);
   }
 
+  /**
+   * Gets the list of modifiers to apply to this node
+   *
+   * @return the list of modifiers
+   */
   std::vector<std::string> getModifiers() const {
     return this->modifiers;
   }
 
 private:
+  /** The input string for this node. This can be any combination or none of: rules, actions, and modifiers. */
   std::string input;
+
+  /** True if this node is complete - if it contains no rules, actions, or modifiers. */
   bool isNodeComplete_;
-  bool isNodeExpanded_;
+
+  /** The list of children this node has. */
   std::vector<std::shared_ptr<TreeNode>> children;
+
+  /** A pointer to the previous leaf if this is a leaf and one exists. */
   std::shared_ptr<TreeNode> prevLeaf;
+
+  /** A pointer to the next leaf if this is a leaf and one exists. */
   std::shared_ptr<TreeNode> nextLeaf;
+
+  /**  A pointer to the previous unexpanded leaf if this is an unexpanded leaf and one exists. */
   std::shared_ptr<TreeNode> prevUnexpandedLeaf;
+
+  /** A pointer to the next unexpanded leaf if this is an unexpanded leaf and one exists. */
   std::shared_ptr<TreeNode> nextUnexpandedLeaf;
+
+  /** A key name if one has been set on this node. */
   std::optional<std::string> keyName;
+
+  /** True if this node is hidden. */
   bool isNodeHidden_;
+
+  /** The list of modifiers that have been added to this node. */
   std::vector<std::string> modifiers;
 };
 
+/**
+ * Expands this node, processing any rules, actions, and modifiers in it, and creating child nodes for each. If the node
+ * contains no such expandable elements, does nothing.
+ *
+ * @tparam RNG the type of the random number generator in use
+ * @tparam UniformIntDistributionT the type to use to perform equal probability expansion of rules
+ * @param jsonGrammar the input grammar for the tree containing this node
+ * @param rng the random number generator to use
+ * @param runtimeDictionary the runtime dictionary in use by the tree containing this node
+ */
 template<typename RNG, typename UniformIntDistributionT>
 void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
                           nlohmann::json& runtimeDictionary) {
-  if (this->isNodeExpanded()) return;
+  // If the node is complete, nothing to do
+  if (this->isNodeComplete()) return;
 
   if (details::containsOnlyRule(this->input)) {
-    // expand rule
+    // If this node contains only a rule, get the rule name from the first capture group and the list of modifiers from
+    // the second capture group.
     std::string ruleName = std::regex_replace(this->input,
                                               details::getOnlyRuleRegex(),
                                               "$1");
@@ -808,89 +1014,141 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                                              "$2");
 
     std::vector<std::string> mods;
+    // Split the single string representing the list of modifiers into individual strings representing a single modifier
+    // each.
     std::for_each(std::sregex_token_iterator(modsStr.begin(),
                                              modsStr.end(),
                                              details::getModifierRegex(),
                                              0),
                   std::sregex_token_iterator(),
+                  // This lambda takes in a match object, gets the string representation of the match, removes the
+                  // leading dot (.) from the modifier string, and adds it to the list of modifiers
                   [&mods](auto& mtch) {
                     std::string modifier = mtch.str().substr(1, mtch.str().size());
                     mods.push_back(modifier);
                   });
 
+    // Attempt to get an expansion of the rule from the runtime grammar
     auto ruleContents = runtimeDictionary[ruleName];
+
+    // This will be the output of expanding the rule
     std::string output;
+
+    // If ruleContents doesn't contain anything, there is no runtime definition for this rule name, attempt to get it
+    // from the input grammar
     if (ruleContents.is_null())
       ruleContents = jsonGrammar[ruleName];
+
+    // If the rule contents are a string, assign the output
     if (ruleContents.is_string()) {
       output = ruleContents;
     }
 
+    // If the rule contents are a list, create an instance of the uniform distribution type, and use it to select
+    // a single item from the array
     if (ruleContents.is_array()) {
       UniformIntDistributionT dist(0, ruleContents.size() - 1);
       output = ruleContents[dist(rng)];
     }
 
+    // For each modifier in the list of modifiers, add it to this node's list of modifiers
     for (auto& modifier : mods) {
       this->addModifier(modifier);
     }
+
+    // Create the new child node from the output
     this->addChild(output);
   } else if (details::containsOnlyRuleWithActions(this->input)) {
+    // If this node contains only a rule with actions, split into actions and rule, emitting a child node for each.
+    // First, get the string representing the list of actions from the first capture group
     std::string actions = std::regex_replace(this->input,
                                              details::getOnlyRuleWithActionsRegex(),
                                              "$1");
+
+    // Then, get the rule name and any modifiers from the second and third capture groups.
     std::string ruleName = std::regex_replace(this->input,
                                               details::getOnlyRuleWithActionsRegex(),
                                               "$2$3");
+
+    // Add a child using the extracted actions
     this->addChild(actions);
+
+    // Add a child using the extracted rule name. Since it's been stripped of surrounding octothorpes, add then back in.
     this->addChild("#" + ruleName + "#");
   } else if (details::containsOnlyKeylessRuleAction(this->input)) {
+    // This node contains only a rule action, with no key being assigned. Get the rule name from the first capture group
     std::string rule = std::regex_replace(this->input,
                                           details::getOnlyKeylessRuleActionRegex(),
                                           "$1");
+
+    // Add a child using the rule.
     this->addChild(rule);
   } else if (details::containsOnlyKeyWithRuleAction(this->input)) {
+    // This node contains an action which expands a rule and assigns the output to a key. First, get the key name from
+    // the first capture group.
     std::string key = std::regex_replace(this->input,
                                          details::getOnlyKeyWithRuleActionRegex(),
                                          "$1");
+
+    // Then get the rule name from the second capture group.
     std::string rule = std::regex_replace(this->input,
                                           details::getOnlyKeyWithRuleActionRegex(),
                                           "$2");
+
+    // Since this node is assigning to a key, its output must be suppressed. Set to hidden.
     this->isNodeHidden_ = true;
+
+    // Create a child from the extracted rule
     this->addChild(rule);
+
+    // Get the newly added child, and pass down the key name
     this->children.back()->setKeyName(key);
   } else if (details::containsOnlyKeyWithTextAction(this->input)) {
     //   [key:text] - sets key to "text"
     //   [key:a,b,c,...] - sets key to a list
+    // Extract the key name using the first capture group.
     std::string key = std::regex_replace(this->input,
                                          details::getOnlyKeyWithTextActionRegex(),
                                          "$1");
+
+    // Extract the text or key from the second capture group
     std::string txt = std::regex_replace(this->input,
                                          details::getOnlyKeyWithTextActionRegex(),
                                          "$2");
 
+    // Since this is setting a key, this node is hidden
     this->isNodeHidden_ = true;
+
+    // Create a json array
     nlohmann::json arr = nlohmann::json::array();
+
+    // Split the txt using the comma regex, and call the given function on each token. Note that because a single item
+    // will contain no commas, this will be called once even if no list is present.
     std::for_each(std::sregex_token_iterator(txt.begin(),
                                              txt.end(),
                                              details::getCommaRegex(),
                                              -1),
                   std::sregex_token_iterator(),
-                  [&arr, this, &key](auto& mtch) {
+                  // This lambda extracts the string from each match object and adds it to the json list created above.
+                  [&arr](auto& mtch) {
                     arr.push_back(mtch.str());
-                    this->addChild(mtch.str());
                   });
+
+    // Set the key in the runtime dictionary to the json array
     runtimeDictionary[key] = arr;
   } else if (details::containsOnlyActions(this->input)) {
-    // Actions:
-    //   [#text#] - calls a function, essentially
+    // This node contains only one or more actions.
+    // Action types:
+    //   [#text#] - calls a function, essentially, by expanding a rule
     //   [key:#text#] - sets key to expansion of #text#
     //   [key:text] - sets key to "text"
     //   [key:a,b,c,...] - sets key to a list
+
+    // For each action string, add a child to this node representing a single action
     std::for_each(std::sregex_token_iterator(this->input.begin(),
                                              this->input.end(),
                                              details::getActionRegex(),
-                                             {-1, 0}),
+                                             0),
                   std::sregex_token_iterator(),
                   [this](auto& mtch) {
                     auto action = mtch.str();
@@ -900,6 +1158,8 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                     }
                   });
   } else {
+    // This node represents some mix of strings, use the rule regex to separate it into strings representing rules and
+    // strings representing non-rules. For each of those, add a child to this node with it as an input string.
     std::for_each(std::sregex_token_iterator(this->input.begin(),
                                              this->input.end(),
                                              details::getRuleRegex(),
@@ -911,9 +1171,9 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                   });
   }
 
+  // Remove this node from the linked list of unexpanded leaves, if applicable
   if (this->prevUnexpandedLeaf)
     this->prevUnexpandedLeaf->nextUnexpandedLeaf = this->nextUnexpandedLeaf;
-
   if (this->nextUnexpandedLeaf)
     this->nextUnexpandedLeaf->prevUnexpandedLeaf = this->prevUnexpandedLeaf;
 }
@@ -930,7 +1190,7 @@ public:
     this->root->setPrevLeaf(this->leafIndex);
     this->leafIndex->setNextLeaf(this->root);
 
-    if (!this->root->isNodeExpanded()) {
+    if (!this->root->isNodeComplete()) {
       this->unexpandedLeafIndex->setNextUnexpandedLeaf(this->root);
       this->root->setPrevUnexpandedLeaf(this->unexpandedLeafIndex);
     }
