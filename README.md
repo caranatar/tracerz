@@ -9,6 +9,7 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 * [Dependencies](#dependencies)
 * [Basic usage](#basic-usage)
     * [Create a grammar](#create-a-grammar)
+    * [Expanding rules](#expanding-rules)
 * [Future plans](#future-plans)
 
 ## About
@@ -78,6 +79,12 @@ call until it returns false:
 
 ```cpp
 while(tree->expand(grammar.getModifierFunctions(), grammar.getRNG()));
+```
+
+Then, to retrieve the output from the tree, simply call `flatten` on it with the desired modifier function map:
+
+```cpp
+std::string output = tree->flatten(grammar.getModifierFunctions()); // returns "output is output"
 ```
 
 ## Future plans
