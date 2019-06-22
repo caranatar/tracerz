@@ -1524,33 +1524,69 @@ const details::callback_map_t& getBaseEngModifiers() {
   // Return the map
   return baseMods;
 }
-
+/**
+ * Represents a grammar, based on a given input grammar, using a given random number generator and uniform distribution
+ * type.
+ *
+ * @tparam RNG the type of the random number generator to use
+ * @tparam UniformIntDistributionT the type of the uniform distribution to use
+ */
 template<typename RNG = std::mt19937,
     typename UniformIntDistributionT = std::uniform_int_distribution<>>
 class Grammar {
 public:
+  /**
+   * Creates a new grammar from the given parameters.
+   *
+   * @param grammar the input grammar
+   * @param _rng the random number generator to use
+   */
   explicit Grammar(nlohmann::json grammar = "{}"_json,
                    RNG _rng = RNG(time(nullptr)))
       : jsonGrammar(std::move(grammar))
       , rng(_rng) {
   }
 
+  /**
+   * Creates and returns a tree with the given input string as the input to its root node.
+   *
+   * @param input the input string for the root of the tree
+   * @return the tree with that root
+   */
   std::shared_ptr<Tree> getTree(const std::string& input) const {
     std::shared_ptr<Tree> tree(new Tree(input, this->jsonGrammar));
     return tree;
   }
 
+  /**
+   * Adds the given modifiers to this grammar
+   *
+   * @param mfs a map of modifier names to functions
+   */
   void addModifiers(const details::callback_map_t& mfs) {
     for (auto& mf : mfs) {
       this->addModifier(mf.first, mf.second);
     }
   }
 
+  /**
+   * Adds a pointer to a modifier to this grammar
+   *
+   * @param name the name of the modifier
+   * @param mod the pointer to the modifier function
+   */
   void addModifier(const std::string& name,
                    std::shared_ptr<details::IModifierFn> mod) {
     this->modifierFunctions[name] = std::move(mod);
   }
 
+  /**
+   * Adds a parametric modifier to this grammar
+   *
+   * @tparam PTs the parameter types of the modifier
+   * @param name the name of the modifier
+   * @param fun the modifier function
+   */
   template<typename... PTs>
   void addModifier(const std::string& name,
                    std::function<std::string(PTs...)> fun) {
@@ -1558,19 +1594,40 @@ public:
     this->addModifier(name, fptr);
   }
 
+  /**
+   * Returns the map of modifier names to functions
+   *
+   * @return the map of modifier names to functions
+   */
   const details::callback_map_t& getModifierFunctions() const {
     return this->modifierFunctions;
   }
 
+  /**
+   * Flattens the given input string into a single output string using this grammar.
+   *
+   * @param input the input string to flatten
+   * @return the flattened output string
+   */
   std::string flatten(const std::string& input) {
+    // Get a tree rooted with the given input string
     auto tree = this->getTree(input);
+
+    // While there are unexpanded nodes, expand the next one
     while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng));
+
+    // Flatten the tree using this grammar's modifier functions
     return tree->flatten(this->getModifierFunctions());
   }
 
 private:
+  /** The input json grammar */
   nlohmann::json jsonGrammar;
+
+  /** The random number generator */
   RNG rng;
+
+  /** The map from modifier names to modifier functions */
   details::callback_map_t modifierFunctions;
 };
 
