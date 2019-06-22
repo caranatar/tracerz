@@ -67,8 +67,9 @@ To get an unexpanded tree rooted with the input string instead, call `getTree(in
 std::shared_ptr<tracerz::Tree> tree = grammar.getTree("output is #rule#");
 ```
 
-Note that the `Tree` object does not track modifiers or the RNG in use, so these would have to be retrieved from the
-`Grammar` object in order to perform expansion as expected on the `Tree`:
+To expand the tree one step, call `expand` on the tree. Note that the `Tree` object does not track modifiers or the RNG
+in use, so these would have to be retrieved from the `Grammar` object in order to perform expansion as expected on the
+`Tree`:
 
 ```cpp
 tree->expand(grammar.getModifierFunctions(), grammar.getRNG());
