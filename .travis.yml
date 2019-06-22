@@ -15,6 +15,7 @@ addons:
       - g++-7
       - cmake
       - graphviz
+      - doxygen
 script:
   # Export CC and CXX to tell cmake which compiler to use
   - if [ "$CC" = "gcc" ]; then export CC=/usr/bin/gcc-7; fi
