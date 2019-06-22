@@ -52,11 +52,32 @@ To add the base English modifiers supported by tracery, add the following after 
 grammar.addModifiers(tracerz::getBaseEngModifiers());
 ```
 
+### Expanding rules
 To create a new tree, expand all the nodes, and retrieve the flattened output string, simply call `flatten(input)` on
 the grammar:
 
 ```cpp
 grammar.flatten("output is #rule#"); // returns "output is output"
+```
+
+To get an unexpanded tree rooted with the input string instead, call `getTree(input)`:
+
+```cpp
+std::shared_ptr<tracerz::Tree> tree = grammar.getTree("output is #rule#");
+```
+
+Note that the `Tree` object does not track modifiers or the RNG in use, so these would have to be retrieved from the
+`Grammar` object in order to perform expansion as expected on the `Tree`:
+
+```cpp
+tree->expand(grammar.getModifierFunctions(), grammar.getRNG());
+```
+
+This method returns true if there are still unexpanded nodes in the tree, so if you wish to expand all nodes, simply
+call until it returns false:
+
+```cpp
+while(tree->expand(grammar.getModifierFunctions(), grammar.getRNG()));
 ```
 
 ## Future plans
