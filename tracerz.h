@@ -1604,6 +1604,15 @@ public:
   }
 
   /**
+   * Gets this grammar's random number generator
+   *
+   * @return this grammar's random number generator
+   */
+  const RNG& getRNG() const {
+    return this->rng;
+  }
+
+  /**
    * Flattens the given input string into a single output string using this grammar.
    *
    * @param input the input string to flatten
