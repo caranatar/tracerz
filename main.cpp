@@ -203,6 +203,21 @@ TEST_CASE("Custom modifiers", "[tracerz]") {
   }
 }
 
+TEST_CASE("Tree modifiers", "[tracerz]") {
+  nlohmann::json grammar = {
+      {"popSubject", "[#subject.pop!!#]"},
+      {"animal",     "dog"},
+      {"object",     "door"},
+      {"noise",      "#subject# made a noise"},
+      {"story2",     "#noise##popSubject#"},
+      {"story",      "#[subject:#animal#]subject# opened the #[subject:#object#]subject#. #story2#. #story2#"}
+  };
+  tracerz::Grammar zgr(grammar);
+  zgr.addModifiers(tracerz::getBaseEngModifiers());
+  zgr.addModifiers(tracerz::getBaseExtendedModifiers());
+  REQUIRE(zgr.flatten("#story#") == "dog opened the door. door made a noise. dog made a noise");
+}
+
 TEST_CASE("Basic actions", "[tracerz]") {
   nlohmann::json actions = {
       {"getKey",           "key is #key#"},
