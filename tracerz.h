@@ -1223,6 +1223,9 @@ public:
     // Get the leftmost unexpanded leaf
     auto next = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
 
+    // Return false if the tree is already fully expanded
+    if (!next) return false;
+
     // Push it onto the stack of nodes currently being expanded
     this->expandingNodes.push(next);
 
