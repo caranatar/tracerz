@@ -1735,7 +1735,7 @@ public:
    *
    * @return the map of modifier names to functions
    */
-  const details::callback_map_t& getModifierFunctions() const {
+  details::callback_map_t& getModifierFunctions() {
     return this->modifierFunctions;
   }
 
