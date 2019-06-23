@@ -12,7 +12,10 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 * [Advanced usage](#advanced-usage)
     * [Custom RNG](#custom-rng)
         * [Type requirements](#type-requirements)
+    * [Tree Modifiers](#tree-modifiers)
     * [Adding modifiers](#adding-modifiers)
+        * [Adding output modifiers](#adding-output-modifiers)
+        * [Adding tree modifiers](#adding-tree-modifiers)
     * [Step-by-step tree expansion](#step-by-step-tree-expansion)
 * [Building API documentation](#building-api-docs)
 * [Future plans](#future-plans)
@@ -57,6 +60,24 @@ To add the base English modifiers supported by tracery, add the following after 
 ```cpp
 grammar.addModifiers(tracerz::getBaseEngModifiers());
 ```
+
+If you need to pop rules off rulestacks (if you do you'll know), it's sufficient for now to know the following:
+
+* To do so you must import the base extended modifiers:
+  ```cpp
+  grammar.addModifiers(tracerz::getBaseExtendedModifiers());
+  ```
+  
+* In tracerz, popping is done by applying the Tree modifier `pop!!` to the rule name:
+  ```javascript
+  // The following in tracerz:
+  { "#popKey#", "[#key.pop!!#]" }
+
+  // is equivalent to the following in tracery:
+  { "#popKey#", "[key:POP]" }
+  ```
+
+To learn more about Tree modifiers like `pop!!`, see [Tree modifiers](#tree-modifiers)
 
 ### Expanding rules
 To create a new tree, expand all the nodes, and retrieve the flattened output string, simply call `flatten(input)` on
@@ -110,10 +131,19 @@ The uniform distribution type has two requirements:
 [a, b].
 * It must have an `operator()` which can take a parameter of the RNG type and generate a number in the requested range.
 
+### Tree modifiers
+Tree modifiers are an extended feature of tracerz not present in the original tracery tool. These modifiers take as
+input the tree they are working on as a `std::shared_ptr<Tree>`, as well as the rule name they are being applied to
+(i.e., if a tree modifier `foo!!` is called as `#rule.foo!!#`, the underlying function will receive the pointer to the
+tree as well as the string "rule"). By convention, tracerz uses two exclamation points at the end of tree modifiers to
+visually disambiguate them, but this is not enforced in any way by the library.
+
 ### Adding modifiers
-To create a new modifier, create a `std::function` that takes at least one `std::string` as input, and returns a
-`std::string`. To create a modifier that takes parameters when used in the language, simply add additional `std::string`
-parameters to your modifier function.
+#### Adding output modifiers
+Output modifiers act on the output of expanding a rule, they are the only type of modifier present in the original
+tracery language. To create a new output modifier, create a `std::function` that takes at least one `std::string` as
+input, and returns a `std::string`. To create a modifier that takes parameters when used in the language, simply add
+additional `std::string` parameters to your modifier function.
 
 ```cpp
 // Modifier with no parameters
@@ -132,6 +162,26 @@ grammar.addModifier("noise", noise);
 
 In the language, these can be used to the same effect as `#rule.meow#` and `#rule.noise( meow!)#`. Note the leading space
 in the second example. tracerz maintains whitespace in parameters; only commas separating parameters are removed.
+
+#### Adding tree modifiers
+See [Tree modifiers](#tree-modifiers) for details on the definition of tree modifiers. To create a tree modifier, create
+a `std::function` that takes at least one `const std::shared_ptr<Tree>&`, representing the tree being acted on, and one
+`const std::string&`, representing the rule name the modifier is being called on, and returns an empty `std::string`.
+For example:
+
+```cpp
+std::shared_ptr<tracerz::Tree> tree = grammar.getExpandedTree("#rule.foo!!#");
+std::function<std::string(const std::shared_ptr<tracerz::Tree>&,const std::string&)> foo = [](const std::shared_ptr<tracerz::Tree>& t, const std::string& r) {
+  // t == tree
+  // r == "rule"
+  return "";
+};
+grammar.addModifier("foo!!", foo);
+```
+
+Tree modifiers can make any change to the Tree possible through its public API. This includes modifying the structure of
+or runtime state of the tree. In tracerz, popping a ruleset off a rulestack is implemented as a Tree modifier (`pop!!`)
+for this reason.
 
 ### Step-by-step tree expansion
 To get an unexpanded tree rooted with the input string, call `getTree(input)`:
@@ -172,5 +222,5 @@ The docs will be generated under the directory docs in the build directory.
 ## Future plans
 * Genericize json handling, in the same way the RNG characteristics are, to remove built-in dependency
 * Support alternate distributions (weighted, etc...)
-* Support modifiers that act on the tree itself
+* Support modifiers that act on tree nodes
 * Support expansion of modifier parameters
