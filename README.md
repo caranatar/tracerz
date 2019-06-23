@@ -13,6 +13,7 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
     * [Custom RNG](#custom-rng)
         * [Type requirements](#type-requirements)
     * [Adding modifiers](#adding-modifiers)
+    * [Step-by-step tree expansion](#step-by-step-tree-expansion)
 * [Building API documentation](#building-api-docs)
 * [Future plans](#future-plans)
 
@@ -76,24 +77,6 @@ Then, to retrieve the output from the tree, simply call `flatten` on it with the
 std::string output = tree->flatten(grammar.getModifierFunctions()); // returns "output is output"
 ```
 
-To get an unexpanded tree rooted with the input string instead, call `getTree(input)`:
-
-```cpp
-std::shared_ptr<tracerz::Tree> tree = grammar.getTree("output is #rule#");
-```
-
-To expand the tree one step, call `expand` on the tree. Note that the `Tree` object does not track modifiers or the RNG
-in use, so these have to be retrieved from the `Grammar` object in order to perform expansion as expected on the `Tree`.
-In addition, it is necessary to provide template parameters to this method to give the type of the RNG and uniform
-distribution:
-
-```cpp
-tree->template expand<decltype(grammar)::rng_t, decltype(grammar)::uniform_distribution_t>(grammar.getModifierFunctions(), grammar.getRNG());
-```
-
-This method returns true if there are still unexpanded nodes in the tree, so if you wish to expand all nodes, simply
-call until it returns false. To get the flattened state of the tree at any step, call `flatten` as above.
-
 ## Advanced usage
 ### Custom RNG
 By default, tracerz uses the C++ standard library's Mersenne Twister algorithm `std::mt19937` for random number
@@ -149,6 +132,25 @@ grammar.addModifier("noise", noise);
 
 In the language, these can be used to the same effect as `#rule.meow#` and `#rule.noise( meow!)`. Note the leading space
 in the second example. tracerz maintains whitespace in parameters; only commas separating parameters are removed.
+
+### Step-by-step tree expansion
+To get an unexpanded tree rooted with the input string instead, call `getTree(input)`:
+
+```cpp
+std::shared_ptr<tracerz::Tree> tree = grammar.getTree("output is #rule#");
+```
+
+To expand the tree one step, call `expand` on the tree. Note that the `Tree` object does not track modifiers or the RNG
+in use, so these have to be retrieved from the `Grammar` object in order to perform expansion as expected on the `Tree`.
+In addition, it is necessary to provide template parameters to this method to give the type of the RNG and uniform
+distribution:
+
+```cpp
+tree->template expand<decltype(grammar)::rng_t, decltype(grammar)::uniform_distribution_t>(grammar.getModifierFunctions(), grammar.getRNG());
+```
+
+This method returns true if there are still unexpanded nodes in the tree, so if you wish to expand all nodes, simply
+call until it returns false. To get the flattened state of the tree at any step, call `flatten` as above.
 
 ## Library concepts
 See @galaxykate's [tracery repo](https://github.com/galaxykate/tracery/tree/tracery2#library-concepts) for a description
