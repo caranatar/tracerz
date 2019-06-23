@@ -12,7 +12,8 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 * [Advanced usage](#advanced-usage)
     * [Custom RNG](#custom-rng)
         * [Type requirements](#type-requirements)
-    * [Tree Modifiers](#tree-modifiers)
+    * [Tree modifiers](#tree-modifiers)
+    * [Tree node modifiers](#tree-node-modifiers)
     * [Adding modifiers](#adding-modifiers)
         * [Adding output modifiers](#adding-output-modifiers)
         * [Adding tree modifiers](#adding-tree-modifiers)
@@ -138,6 +139,13 @@ input the tree they are working on as a `std::shared_ptr<Tree>`, as well as the 
 tree as well as the string "rule"). By convention, tracerz uses two exclamation points at the end of tree modifiers to
 visually disambiguate them, but this is not enforced in any way by the library.
 
+### Tree node modifiers
+Tree node modifiers are an extended feature of tracerz not present in the original tracery tool. These modifiers take as
+input the tree node they are working on as a `std::shared_ptr<TreeNode>`, as well as the rule name they are being
+applied to (i.e., if a tree node modifier `foo!` is called as `#rule.foo!#`, the underlying function will receive the
+pointer to the tree node as well as the string "rule"). By convention, tracerz uses one exclamation point at the end of
+tree node modifiers to visually disambiguate them, but this is not enforced in any way by the library.
+
 ### Adding modifiers
 #### Adding output modifiers
 Output modifiers act on the output of expanding a rule, they are the only type of modifier present in the original
@@ -165,7 +173,7 @@ in the second example. tracerz maintains whitespace in parameters; only commas s
 
 #### Adding tree modifiers
 See [Tree modifiers](#tree-modifiers) for details on the definition of tree modifiers. To create a tree modifier, create
-a `std::function` that takes at least one `const std::shared_ptr<Tree>&`, representing the tree being acted on, and one
+a `std::function` that takes a `const std::shared_ptr<Tree>&`, representing the tree being acted on, and at least one
 `const std::string&`, representing the rule name the modifier is being called on, and returns an empty `std::string`.
 For example:
 
@@ -182,6 +190,21 @@ grammar.addModifier("foo!!", foo);
 Tree modifiers can make any change to the Tree possible through its public API. This includes modifying the structure of
 or runtime state of the tree. In tracerz, popping a ruleset off a rulestack is implemented as a Tree modifier (`pop!!`)
 for this reason.
+
+Tree modifiers can also be parameterized in the same way as output modifiers, by adding addition string parameters to
+the function.
+
+#### Adding tree modifiers
+See [Tree node modifiers](#tree-node-modifiers) for details on the definition of tree node modifiers. To create a tree
+node modifier, create a `std::function` that takes a `const std::shared_ptr<TreeNode>&`, representing the tree node
+being acted on, and at least one `const std::string&`, representing the rule name the modifier is being called on, and
+returns an empty `std::string`.
+
+Tree node modifiers can make any change to the TreeNode possible through its public API. tracerz does not make use of
+this functionality at this time, and it is only being provided for completeness.
+
+Tree node modifiers can also be parameterized in the same way as output modifiers, by adding addition string parameters
+to the function.
 
 ### Step-by-step tree expansion
 To get an unexpanded tree rooted with the input string, call `getTree(input)`:

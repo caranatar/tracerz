@@ -146,7 +146,12 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
   REQUIRE(zgr.flatten("#chainedOrigin#") == "A cashed out");
 
   // Test calling a string modifier with Tree input
-  REQUIRE(zgr.getModifierFunctions()["a"]->callVec(nullptr, "rule", std::vector<std::string>()).empty());
+  REQUIRE(zgr.getModifierFunctions()["a"]->callVec(std::shared_ptr<tracerz::Tree>(nullptr), "rule",
+                                                   std::vector<std::string>()).empty());
+
+  // Test calling a string modifier with TreeNode input
+  REQUIRE(zgr.getModifierFunctions()["a"]->callVec(std::shared_ptr<tracerz::TreeNode>(nullptr), "rule",
+                                                   std::vector<std::string>()).empty());
 }
 
 TEST_CASE("Custom modifiers", "[tracerz]") {
@@ -222,6 +227,40 @@ TEST_CASE("Tree modifiers", "[tracerz]") {
 
   // Test calling a tree modifier with string input
   REQUIRE(zgr.getModifierFunctions()["pop!!"]->callVec("input", std::vector<std::string>()).empty());
+
+  // Test calling a tree modifier with TreeNode input
+  REQUIRE(zgr.getModifierFunctions()["pop!!"]->callVec(std::shared_ptr<tracerz::TreeNode>(nullptr), "rule",
+                                                       std::vector<std::string>()).empty());
+}
+
+TEST_CASE("Tree node modifiers", "[tracerz]") {
+  nlohmann::json grammar = {
+      {"animal", "raccoon"},
+      {"dll",    "#animal.s# "},
+      {"dlr",    "are terrible"},
+      {"drl",    ". just kidding. "},
+      {"drr",    "#animal.s# are rad"},
+      {"dl",     "#dll##dlr#"},
+      {"dr",     "#drl##drr#"},
+      {"deep",   "#dl##dr#"}
+  };
+  tracerz::Grammar zgr(grammar);
+  std::shared_ptr<tracerz::Tree> tree;
+  std::function<std::string(const std::shared_ptr<tracerz::TreeNode>&, const std::string&)> getNode = [&tree](
+      const std::shared_ptr<tracerz::TreeNode>& node, const std::string& rule) {
+    REQUIRE(node == tree->getRoot());
+    return "";
+  };
+  zgr.addModifier("getNode!", getNode);
+  tree = zgr.getExpandedTree("#deep.getNode!#");
+  tree->flatten(zgr.getModifierFunctions());
+
+  // Test calling a tree modifier with string input
+  REQUIRE(zgr.getModifierFunctions()["getNode!"]->callVec("input", std::vector<std::string>()).empty());
+
+  // Test calling a tree modifier with Tree input
+  REQUIRE(zgr.getModifierFunctions()["getNode!"]->callVec(std::shared_ptr<tracerz::Tree>(nullptr), "rule",
+                                                          std::vector<std::string>()).empty());
 }
 
 TEST_CASE("Basic actions", "[tracerz]") {

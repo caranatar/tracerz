@@ -42,11 +42,23 @@ public:
    * Calls the modifier function with the given info
    *
    * @param input the input Tree to modify
-   * @param the name of the rule this modifier was called on
+   * @param ruleName the name of the rule this modifier was called on
    * @param params the additional params to pass into the function
    * @return empty string
    */
   virtual std::string callVec(const std::shared_ptr<Tree>& input,
+                              const std::string& ruleName,
+                              const std::vector<std::string>& params) = 0;
+
+  /**
+   * Calls the modifier function with the given info
+   *
+   * @param input the input TreeNode to modify
+   * @param ruleName the name of
+   * @param params the additional params to pass into the function
+   * @return empty string
+   */
+  virtual std::string callVec(const std::shared_ptr<TreeNode>& input,
                               const std::string& ruleName,
                               const std::vector<std::string>& params) = 0;
 
@@ -63,6 +75,13 @@ public:
    * @return true if this modifier takes a Tree as its input.
    */
   virtual bool isTreeModifier() const = 0;
+
+  /**
+   * Returns true if this modifier takes a TreeNode as its input.
+   *
+   * @return true if this modifier takes a TreeNode as its input.
+   */
+  virtual bool isTreeNodeModifier() const = 0;
 
   /**
    * Default virtual destructor.
@@ -173,6 +192,7 @@ class ModifierFn : public IModifierFn {
 public:
   static constexpr bool is_string_modifier = std::is_same_v<std::string, std::decay_t<I>>;
   static constexpr bool is_tree_modifier = std::is_same_v<std::shared_ptr<Tree>, std::decay_t<I>>;
+  static constexpr bool is_tree_node_modifier = std::is_same_v<std::shared_ptr<TreeNode>, std::decay_t<I>>;
 
   /**
    * Construct a ModifierFn for the given modifier function
@@ -232,12 +252,32 @@ public:
     }
   }
 
+  std::string callVec(const std::shared_ptr<TreeNode>& input,
+                      const std::string& ruleName,
+                      const std::vector<std::string>& params) override {
+    if constexpr (ModifierFn<I, Ts...>::is_tree_node_modifier) {
+      std::vector<std::string> ruleNameWithParams;
+      ruleNameWithParams.push_back(ruleName);
+      std::copy(params.begin(), params.end(), std::back_inserter(ruleNameWithParams));
+      return CallVector<sizeof...(Ts), decltype(this->callback), const std::shared_ptr<TreeNode>&>::callVec(
+          this->callback,
+          input,
+          ruleNameWithParams);
+    } else {
+      return "";
+    }
+  }
+
   bool isStringModifier() const override {
     return ModifierFn<I, Ts...>::is_string_modifier;
   }
 
   bool isTreeModifier() const override {
     return ModifierFn<I, Ts...>::is_tree_modifier;
+  }
+
+  bool isTreeNodeModifier() const override {
+    return ModifierFn<I, Ts...>::is_tree_node_modifier;
   }
 
 private:
@@ -584,7 +624,7 @@ bool containsParametricModifier(const std::string& input) {
  *
  * TODO: enumerate node types
  */
-class TreeNode {
+class TreeNode : public std::enable_shared_from_this<TreeNode> {
 public:
   /**
    * Default constructor. Contains no input, used by the tree to point to certain nodes within the tree, from outside it
@@ -797,13 +837,19 @@ public:
         if (modFuns.find(modName) != modFuns.end()) {
           // If the modifier name names a real modifier, call it with the appropriate input and parameters (if any), and
           // update the output string.
-          if (modFuns[modName]->isStringModifier()) {
-            output = modFuns[modName]->callVec(output, params);
-          } else if (modFuns[modName]->isTreeModifier()) {
+          auto& modFun = modFuns[modName];
+          if (modFun->isStringModifier()) {
+            output = modFun->callVec(output, params);
+          } else {
             // Because of the way the parse tree is built, this node will never have actions attached to the front of
             // the input. Therefore, the first capture group from this regex will be the rule name.
             std::string ruleName = std::regex_replace(this->input, details::getRuleRegex(), "$1");
-            output = modFuns[modName]->callVec(tree, ruleName, params);
+
+            if (modFun->isTreeModifier()) {
+              output = modFun->callVec(tree, ruleName, params);
+            } else if (modFun->isTreeNodeModifier()) {
+              output = modFun->callVec(this->shared_from_this(), ruleName, params);
+            }
           }
         }
       }
