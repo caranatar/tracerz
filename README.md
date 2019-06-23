@@ -13,6 +13,7 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
     * [Custom RNG](#custom-rng)
         * [Type requirements](#type-requirements)
     * [Adding modifiers](#adding-modifiers)
+* [Building API documentation](#building-api-docs)
 * [Future plans](#future-plans)
 
 ## About
@@ -151,6 +152,18 @@ in the second example. tracerz maintains whitespace in parameters; only commas s
 See @galaxykate's [tracery repo](https://github.com/galaxykate/tracery/tree/tracery2#library-concepts) for a description
 of language concepts. One important note is that tracerz does not currently support the concept stacks for rulesets.
 Only the input grammar's definitions and the latest runtime definition are tracked.
+
+## Building API docs
+To build the API docs, from the top level of the repo:
+
+```
+mkdir build
+cd build
+cmake ..
+make doxygen
+```
+
+The docs will be generated under the directory docs in the build directory.
 
 ## Future plans
 * Genericize json handling, in the same way the RNG characteristics are, to remove built-in dependency
