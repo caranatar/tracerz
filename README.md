@@ -6,12 +6,19 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 
 ## Table of contents
 * [About](#about)
+
 * [Dependencies](#dependencies)
+
 * [Basic usage](#basic-usage)
-    * [Create a grammar](#create-a-grammar)
-    * [Expanding rules](#expanding-rules)
-    * [Custom RNG](#custom-rng)
+
+  * [Create a grammar](#create-a-grammar)
+  
+  * [Expanding rules](#expanding-rules)
+  
+  * [Custom RNG](#custom-rng)
+  
 * [Future plans](#future-plans)
+
 
 ## About
 tracerz is a single-header-file procedural generation tool heavily based on @galaxykate's javascript tool tracery. To
