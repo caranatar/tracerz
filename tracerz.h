@@ -800,7 +800,7 @@ public:
   }
 
   template<typename RNG, typename UniformIntDistributionT>
-  void expandNode(const nlohmann::json&, RNG&, nlohmann::json&);
+  void expandNode(const nlohmann::json&, RNG&, std::map<std::string, std::stack<nlohmann::json>>&);
 
   /**
    * Gets the input string for this node
@@ -999,7 +999,7 @@ private:
 template<typename RNG, typename UniformIntDistributionT>
 void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
-                          nlohmann::json& runtimeDictionary) {
+                          std::map<std::string, std::stack<nlohmann::json>>& runtimeDictionary) {
   // If the node is complete, nothing to do
   if (this->isNodeComplete()) return;
 
@@ -1029,7 +1029,9 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                   });
 
     // Attempt to get an expansion of the rule from the runtime grammar
-    auto ruleContents = runtimeDictionary[ruleName];
+    nlohmann::json ruleContents;
+    if (runtimeDictionary.find(ruleName) != runtimeDictionary.end())
+      ruleContents = runtimeDictionary[ruleName].top();
 
     // This will be the output of expanding the rule
     std::string output;
@@ -1135,7 +1137,7 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                   });
 
     // Set the key in the runtime dictionary to the json array
-    runtimeDictionary[key] = arr;
+    runtimeDictionary[key].push(arr);
   } else if (details::containsOnlyActions(this->input)) {
     // This node contains only one or more actions.
     // Action types:
@@ -1249,7 +1251,7 @@ public:
         std::string value = poppedNode->flatten(modFuns, false);
 
         // Set the key in the runtime grammar
-        this->runtimeDictionary[key] = value;
+        this->runtimeDictionary[key].push(value);
       }
 
       // Keep going if there are other nodes we were expanding
@@ -1279,7 +1281,7 @@ public:
             std::string value = poppedNode->flatten(modFuns, false);
 
             // Set the key in the runtime grammar
-            this->runtimeDictionary[key] = value;
+            this->runtimeDictionary[key].push(value);
           }
         } else {
           // poppedNode is not the last expandable child of newTop. There are still more children to expand, so we can
@@ -1386,7 +1388,7 @@ private:
   const nlohmann::json& jsonGrammar;
 
   /** The runtime grammar, consisting of keys created while expanding the tree with the input grammar. */
-  nlohmann::json runtimeDictionary;
+  std::map<std::string, std::stack<nlohmann::json>> runtimeDictionary;
 
   /** A stack of nodes currently being expanded by the depth-first expansion */
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
