@@ -144,6 +144,9 @@ TEST_CASE("Basic modifiers", "[tracerz]") {
   REQUIRE(zgr.flatten("#replaceOrigin#") == "bn blbbtross bte b fish");
   REQUIRE(zgr.flatten("#capAllNumStartOrigin#") == "00flour From Italy");
   REQUIRE(zgr.flatten("#chainedOrigin#") == "A cashed out");
+
+  // Test calling a string modifier with Tree input
+  REQUIRE(zgr.getModifierFunctions()["a"]->callVec(nullptr, "rule", std::vector<std::string>()).empty());
 }
 
 TEST_CASE("Custom modifiers", "[tracerz]") {
@@ -216,6 +219,9 @@ TEST_CASE("Tree modifiers", "[tracerz]") {
   zgr.addModifiers(tracerz::getBaseEngModifiers());
   zgr.addModifiers(tracerz::getBaseExtendedModifiers());
   REQUIRE(zgr.flatten("#story#") == "dog opened the door. door made a noise. dog made a noise");
+
+  // Test calling a tree modifier with string input
+  REQUIRE(zgr.getModifierFunctions()["pop!!"]->callVec("input", std::vector<std::string>()).empty());
 }
 
 TEST_CASE("Basic actions", "[tracerz]") {
