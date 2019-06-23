@@ -1538,6 +1538,12 @@ template<typename RNG = std::mt19937,
     typename UniformIntDistributionT = std::uniform_int_distribution<>>
 class Grammar {
 public:
+  /** Make the underlying RNG type accessible */
+  typedef RNG rng_t;
+
+  /** Make the underlying uniform distribution type accessible */
+  typedef UniformIntDistributionT uniform_distribution_t;
+
   /**
    * Creates a new grammar from the given parameters.
    *
@@ -1611,7 +1617,7 @@ public:
    *
    * @return this grammar's random number generator
    */
-  const RNG& getRNG() const {
+  RNG& getRNG() {
     return this->rng;
   }
 
