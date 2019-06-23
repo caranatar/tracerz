@@ -291,6 +291,9 @@ private:
 /** Represents a mapping of modifier names to modifier functions */
 typedef std::map<std::string, std::shared_ptr<IModifierFn>> callback_map_t;
 
+/** Represents a map of rule names to ruleset stacks */
+typedef std::map<std::string, std::stack<nlohmann::json>> runtime_dictionary_t;
+
 /**
  * Returns the action regular expression
  *
@@ -876,7 +879,7 @@ public:
   }
 
   template<typename RNG, typename UniformIntDistributionT>
-  void expandNode(const nlohmann::json&, RNG&, std::map<std::string, std::stack<nlohmann::json>>&);
+  void expandNode(const nlohmann::json&, RNG&, details::runtime_dictionary_t&);
 
   /**
    * Gets the input string for this node
@@ -1075,7 +1078,7 @@ private:
 template<typename RNG, typename UniformIntDistributionT>
 void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
-                          std::map<std::string, std::stack<nlohmann::json>>& runtimeDictionary) {
+                          details::runtime_dictionary_t& runtimeDictionary) {
   // If the node is complete, nothing to do
   if (this->isNodeComplete()) return;
 
@@ -1450,6 +1453,8 @@ public:
     return this->root->flatten(std::move(modFuns), this->shared_from_this(), ignoreHidden, ignoreMods);
   }
 
+  details::runtime_dictionary_t& getRuntimeDictionary() { return this->runtimeDictionary; }
+
 private:
   /** Points to the leftmost leaf of the tree */
   std::shared_ptr<TreeNode> leafIndex;
@@ -1467,11 +1472,39 @@ private:
   const nlohmann::json& jsonGrammar;
 
   /** The runtime grammar, consisting of keys created while expanding the tree with the input grammar. */
-  std::map<std::string, std::stack<nlohmann::json>> runtimeDictionary;
+  details::runtime_dictionary_t runtimeDictionary;
 
   /** A stack of nodes currently being expanded by the depth-first expansion */
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
+
+const details::callback_map_t& getBaseExtendedModifiers() {
+  static auto wrap = [](const std::function<std::string(const std::shared_ptr<Tree>&, const std::string&)> fun) {
+    std::shared_ptr<details::IModifierFn> ptr(
+        new details::ModifierFn<const std::shared_ptr<Tree>&, const std::string&>(fun));
+    return ptr;
+  };
+
+  static details::callback_map_t baseMods;
+
+  // Already initialized
+  if (!baseMods.empty()) return baseMods;
+
+  baseMods["pop!!"] = wrap([](const std::shared_ptr<Tree>& tree, const std::string& ruleName) {
+    details::runtime_dictionary_t& runtimeDictionary = tree->getRuntimeDictionary();
+    if (runtimeDictionary.find(ruleName) != runtimeDictionary.end() && !runtimeDictionary[ruleName].empty()) {
+      runtimeDictionary[ruleName].pop();
+
+      if (runtimeDictionary[ruleName].empty()) {
+        runtimeDictionary.erase(ruleName);
+      }
+    }
+
+    return "";
+  });
+
+  return baseMods;
+}
 
 /**
  * Gets the set of base english modifiers, as defined by galaxykate's tracery
