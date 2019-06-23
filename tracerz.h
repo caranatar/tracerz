@@ -517,7 +517,7 @@ const std::regex& getOnlyRuleWithActionsRegex() {
  * @return the regex
  */
 const std::regex& getRuleRegex() {
-  static const std::regex rgx(R"(#(?:\[.*\])*([[:alnum:]]+)((?:\.[^.#]+)*)#)");
+  static const std::regex rgx(R"(#(?:\[[^\]]*\])*([[:alnum:]]+)((?:\.[^.#]+)*)#)");
   return rgx;
 }
 
@@ -1250,8 +1250,9 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                                              {-1, 0}),
                   std::sregex_token_iterator(),
                   [this](auto& mtch) {
-                    if (!mtch.str().empty())
+                    if (!mtch.str().empty()) {
                       this->addChild(mtch.str());
+                    }
                   });
   }
 
