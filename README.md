@@ -204,8 +204,8 @@ call until it returns false. To get the flattened state of the tree at any step,
 
 ## Library concepts
 See @galaxykate's [tracery repo](https://github.com/galaxykate/tracery/tree/tracery2#library-concepts) for a description
-of language concepts. One important note is that tracerz does not currently support the concept of stacks for rulesets.
-Only the input grammar's definitions and the latest runtime definition are tracked.
+of language concepts. Note that one breaking difference between the languages is that tracerz uses the `pop!!` modifier
+to pop rulesets off of rulestacks. Where you would use `[key:POP]` in tracery, use `[#key.pop!!#]` in tracerz.
 
 ## Building API docs
 To build the API docs, from the top level of the repo:
