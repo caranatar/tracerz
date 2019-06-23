@@ -1479,6 +1479,12 @@ private:
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
 
+/**
+ * Gets the base extended modifiers. Currently, this is only `pop!!`, a tree modifier that pops the top ruleset off of a
+ * given rulestack.
+ *
+ * @return the base extended modifiers
+ */
 const details::callback_map_t& getBaseExtendedModifiers() {
   static auto wrap = [](const std::function<std::string(const std::shared_ptr<Tree>&, const std::string&)> fun) {
     std::shared_ptr<details::IModifierFn> ptr(
