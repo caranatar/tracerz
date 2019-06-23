@@ -17,6 +17,11 @@
 #include "json.hpp"
 
 namespace tracerz {
+// Forward declaration
+class Tree;
+
+class TreeNode;
+
 namespace details {
 /**
  * This interface represents a generic modifier function that takes an input string and 0 or more string params, and
@@ -28,10 +33,33 @@ public:
    * Calls the modifier function with the given info
    *
    * @param input the input string to modify
-   * @param params the addition params to pass into the function
+   * @param params the additional params to pass into the function
    * @return the modified input string
    */
   virtual std::string callVec(const std::string& input, const std::vector<std::string>& params) = 0;
+
+  /**
+   * Calls the modifier function with the given info
+   *
+   * @param input the input Tree to modify
+   * @param params the additional params to pass into the function
+   * @return empty string
+   */
+  virtual std::string callVec(const std::shared_ptr<Tree>& input, const std::vector<std::string>& params) = 0;
+
+  /**
+   * Returns true if this modifier takes a string as its input.
+   *
+   * @return true if this modifier takes a string as its input.
+   */
+  virtual bool isStringModifier() const = 0;
+
+  /**
+   * Returns true if this modifier takes a Tree as its input.
+   *
+   * @return true if this modifier takes a Tree as its input.
+   */
+  virtual bool isTreeModifier() const = 0;
 
   /**
    * Default virtual destructor.
@@ -180,14 +208,17 @@ public:
  *
  * @tparam Ts parameter pack of the types of the parameters to the function
  */
-template<typename... Ts>
+template<typename I, typename... Ts>
 class ModifierFn : public IModifierFn {
 public:
+  static constexpr bool is_string_modifier = std::is_same_v<std::string, std::decay_t<I>>;
+  static constexpr bool is_tree_modifier = std::is_same_v<std::shared_ptr<Tree>, std::decay_t<I>>;
+
   /**
    * Construct a ModifierFn for the given modifier function
    * @param fun the modifier function
    */
-  explicit ModifierFn(std::function<std::string(Ts...)> fun)
+  explicit ModifierFn(std::function<std::string(I, Ts...)> fun)
       : callback(std::move(fun)) {
   }
 
@@ -209,7 +240,7 @@ public:
   }
 
   /**
-   * Calls the encapsulated function with the given intut string and the given vector of params, unpacked to type `PTs...`
+   * Calls the encapsulated function with the given input string and the given vector of params, unpacked to type `PTs...`
    *
    * **NOTE**: there is no checking on the size of vector
    *
@@ -218,13 +249,34 @@ public:
    * @return the result of calling the function on the parameters
    */
   std::string callVec(const std::string& input, const std::vector<std::string>& params) override {
-    return CallVector<sizeof...(Ts) - 1, decltype(this->callback), const std::string&>::callVec(this->callback, input,
-                                                                                                params);
+    if constexpr (ModifierFn<I, Ts...>::is_string_modifier) {
+      return CallVector<sizeof...(Ts), decltype(this->callback), const std::string&>::callVec(this->callback, input,
+                                                                                              params);
+    } else {
+      return "";
+    }
+  }
+
+  std::string callVec(const std::shared_ptr<Tree>& input, const std::vector<std::string>& params) override {
+    if constexpr (ModifierFn<I, Ts...>::is_tree_modifier) {
+      return CallVector<sizeof...(Ts), decltype(this->callback), const std::shared_ptr<Tree>&>::callVec(this->callback,
+                                                                                                        input, params);
+    } else {
+      return "";
+    }
+  }
+
+  bool isStringModifier() const override {
+    return ModifierFn<I, Ts...>::is_string_modifier;
+  }
+
+  bool isTreeModifier() const override {
+    return ModifierFn<I, Ts...>::is_tree_modifier;
   }
 
 private:
   /** The encapsulated function */
-  std::function<std::string(Ts...)> callback;
+  std::function<std::string(I, Ts...)> callback;
 };
 
 /** Represents a mapping of modifier names to modifier functions */
@@ -775,7 +827,11 @@ public:
         if (modFuns.find(modName) != modFuns.end()) {
           // If the modifier name names a real modifier, call it with the input string and parameters (if any), and
           // update the output string.
-          output = modFuns[modName]->callVec(output, params);
+          if (modFuns[modName]->isStringModifier()) {
+            output = modFuns[modName]->callVec(output, params);
+          } else if (modFuns[modName]->isTreeModifier()) {
+            // TODO: figure this out
+          }
         }
       }
 
@@ -1092,6 +1148,9 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
 
     // Add a child using the rule.
     this->addChild(rule);
+
+    // Set to empty string so modifiers will be applied, but no key will be set
+    this->getLastExpandableChild()->keyName = "";
   } else if (details::containsOnlyKeyWithRuleAction(this->input)) {
     // This node contains an action which expands a rule and assigns the output to a key. First, get the key name from
     // the first capture group.
@@ -1258,7 +1317,7 @@ public:
         std::string value = poppedNode->flatten(modFuns, false);
 
         // Set the key in the runtime grammar
-        this->runtimeDictionary[key].push(value);
+        if (!key.empty()) this->runtimeDictionary[key].push(value);
       }
 
       // Keep going if there are other nodes we were expanding
