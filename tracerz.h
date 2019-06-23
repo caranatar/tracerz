@@ -42,10 +42,13 @@ public:
    * Calls the modifier function with the given info
    *
    * @param input the input Tree to modify
+   * @param the name of the rule this modifier was called on
    * @param params the additional params to pass into the function
    * @return empty string
    */
-  virtual std::string callVec(const std::shared_ptr<Tree>& input, const std::vector<std::string>& params) = 0;
+  virtual std::string callVec(const std::shared_ptr<Tree>& input,
+                              const std::string& ruleName,
+                              const std::vector<std::string>& params) = 0;
 
   /**
    * Returns true if this modifier takes a string as its input.
@@ -257,10 +260,16 @@ public:
     }
   }
 
-  std::string callVec(const std::shared_ptr<Tree>& input, const std::vector<std::string>& params) override {
+  std::string callVec(const std::shared_ptr<Tree>& input,
+                      const std::string& ruleName,
+                      const std::vector<std::string>& params) override {
     if constexpr (ModifierFn<I, Ts...>::is_tree_modifier) {
+      std::vector<std::string> ruleNameWithParams;
+      ruleNameWithParams.push_back(ruleName);
+      std::copy(params.begin(), params.end(), std::back_inserter(ruleNameWithParams));
       return CallVector<sizeof...(Ts), decltype(this->callback), const std::shared_ptr<Tree>&>::callVec(this->callback,
-                                                                                                        input, params);
+                                                                                                        input,
+                                                                                                        ruleNameWithParams);
     } else {
       return "";
     }
@@ -789,12 +798,13 @@ public:
    * @return the flattened string representation
    */
   std::string flatten(details::callback_map_t modFuns,
+                      std::shared_ptr<Tree> tree,
                       bool ignoreHidden = true,
                       bool ignoreModifiers = false) {
     if (!(this->modifiers.empty() || ignoreModifiers)) {
       // If this node has modifiers and ignoreModifiers is not true, then we need to apply modifiers. First we get the
       // flattened string representation without calling modifiers
-      std::string output = this->flatten(modFuns, ignoreHidden, true);
+      std::string output = this->flatten(modFuns, tree, ignoreHidden, true);
 
       // If the output is empty at this point, then return the empty string
       if (output.empty()) return output;
@@ -825,12 +835,15 @@ public:
         }
 
         if (modFuns.find(modName) != modFuns.end()) {
-          // If the modifier name names a real modifier, call it with the input string and parameters (if any), and
+          // If the modifier name names a real modifier, call it with the appropriate input and parameters (if any), and
           // update the output string.
           if (modFuns[modName]->isStringModifier()) {
             output = modFuns[modName]->callVec(output, params);
           } else if (modFuns[modName]->isTreeModifier()) {
-            // TODO: figure this out
+            // Because of the way the parse tree is built, this node will never have actions attached to the front of
+            // the input. Therefore, the first capture group from this regex will be the rule name.
+            std::string ruleName = std::regex_replace(this->input, details::getRuleRegex(), "$1");
+            output = modFuns[modName]->callVec(tree, ruleName, params);
           }
         }
       }
@@ -855,7 +868,7 @@ public:
     std::string ret;
     for (auto& child : this->children) {
       // We can't ignore modifiers, because we will get the wrong output from flattening our children if we do.
-      ret += child->flatten(modFuns, ignoreHidden, false);
+      ret += child->flatten(modFuns, tree, ignoreHidden, false);
     }
 
     // Return the flattened children's string
@@ -1251,7 +1264,7 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
  * one for the first leaf and the other for the first unexpanded leaf. Also provides methods to expand nodes and flatten
  * the tree into a single output string.
  */
-class Tree {
+class Tree : public std::enable_shared_from_this<Tree> {
 public:
   /**
    * Creates a new input tree rooted with the given input string, using the given grammar.
@@ -1314,7 +1327,7 @@ public:
         std::string key = *poppedNode->getKeyName();
 
         // Flatten the subtree to get the value of the key
-        std::string value = poppedNode->flatten(modFuns, false);
+        std::string value = poppedNode->flatten(modFuns, this->shared_from_this(), false);
 
         // Set the key in the runtime grammar
         if (!key.empty()) this->runtimeDictionary[key].push(value);
@@ -1344,7 +1357,7 @@ public:
             std::string key = *poppedNode->getKeyName();
 
             // Flatten the subtree to get the value of the key
-            std::string value = poppedNode->flatten(modFuns, false);
+            std::string value = poppedNode->flatten(modFuns, this->shared_from_this(), false);
 
             // Set the key in the runtime grammar
             this->runtimeDictionary[key].push(value);
@@ -1434,7 +1447,7 @@ public:
                       bool ignoreHidden = true,
                       bool ignoreMods = false) {
     // Forward the call to the root of the tree
-    return this->root->flatten(std::move(modFuns), ignoreHidden, ignoreMods);
+    return this->root->flatten(std::move(modFuns), this->shared_from_this(), ignoreHidden, ignoreMods);
   }
 
 private:
