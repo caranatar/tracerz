@@ -9,7 +9,10 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 * [Basic usage](#basic-usage)
     * [Create a grammar](#create-a-grammar)
     * [Expanding rules](#expanding-rules)
+* [Advanced usage](#advanced-usage)
     * [Custom RNG](#custom-rng)
+        * [Type requirements](#type-requirements)
+    * [Adding modifiers](#adding-modifiers)
 * [Future plans](#future-plans)
 
 ## About
@@ -88,6 +91,7 @@ Then, to retrieve the output from the tree, simply call `flatten` on it with the
 std::string output = tree->flatten(grammar.getModifierFunctions()); // returns "output is output"
 ```
 
+## Advanced usage
 ### Custom RNG
 By default, tracerz uses the C++ standard library's Mersenne Twister algorithm `std::mt19937` for random number
 generation, seeded with the current time, and `std::uniform_int_distribution` to provide a uniform distribution across
@@ -111,7 +115,45 @@ constructing a `tracerz::Grammar` object:
 tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(seed));
 ```
 
+#### Type requirements
+From the viewpoint of tracerz, there is no requirement on the RNG type. If you are using it with the default
+distribution, then you must meet the standard's requirements of `UniformRandomBitGenerator`.
+
+The uniform distribution type has two requirements:
+* It must have a constructor taking two parameters *a* & *b*, restricting the output of the distribution to the range
+[a, b].
+* It must have an `operator()` which can take a parameter of the RNG type and generate a number in the requested range.
+
+### Adding modifiers
+To create a new modifier, create a `std::function` that takes at least one `std::string` as input, and returns a
+`std::string`. To create a modifier that takes parameters when used in the language, simply add additional `std::string`
+parameters to your modifier function.
+
+```cpp
+// Modifier with no parameters
+std::function<std::string(const std::string&)> meow = [](const std::string& input) {
+  return input + " meow!"
+};
+grammar.addModifier("meow", meow);
+
+// Modifier that takes one parameter
+std::function<std::string(const std::string&, const std::string&)> noise = [](const std::string& input,
+                                                                              const std::string& param) {
+  return input + noise;
+};
+grammar.addModifier("noise", noise);
+```
+
+In the language, these can be used to the same effect as `#rule.meow#` and `#rule.noise( meow!)`. Note the leading space
+in the second example. tracerz maintains whitespace in parameters; only commas separating parameters are removed.
+
+## Library concepts
+See @galaxykate's [tracery repo](https://github.com/galaxykate/tracery/tree/tracery2#library-concepts) for a description
+of language concepts. One important note is that tracerz does not currently support the concept stacks for rulesets.
+Only the input grammar's definitions and the latest runtime definition are tracked.
+
 ## Future plans
 * Genericize json handling, in the same way the RNG characteristics are, to remove built-in dependency
 * Support alternate distributions (weighted, etc...)
 * Support modifiers that act on the tree itself
+* Support expansion of modifier parameters
