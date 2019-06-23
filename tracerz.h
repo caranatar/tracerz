@@ -40,16 +40,18 @@ public:
 };
 
 /**
- * Given a function that accepts a string input and at least one additional parameter, the static function of this class
- * recursively unpacks a vector into a parameter pack, and then calls the given function on the input string and
- * the parameter pack.
+ * Given a function that accepts an input and at least one additional parameter, the static function of this class
+ * recursively unpacks a vector into a parameter pack, and then calls the given function on the input and the parameter
+ * pack.
  *
  * @tparam N the number of items remaining in the vector
  * @tparam F the type of the function to call on the unpacked parameters
+ * @tparam I the type of the input
  * @tparam PTs a parameter pack of the types of the items already unpacked from the vector
  */
 template<int N,
     typename F,
+    typename I,
     typename... PTs>
 class CallVector_R {
 public:
@@ -57,13 +59,13 @@ public:
    * Unpacks the first parameter from the parameter vector, moves it to the parameter pack, and then recurses
    *
    * @param fun the function to ultimately call on the input and list of parameters
-   * @param input the input string to pass to `fun`
+   * @param input the input to pass to `fun`
    * @param paramVec the remaining parameters
    * @param params the parameter pack of parameters that have been unpacked from the vector so far
    * @return the result of calling `fun` on the input string with all parameters
    */
   static decltype(auto) callVec(F fun,
-                                const std::string& input,
+                                I input,
                                 std::vector<std::string> paramVec,
                                 PTs... params) {
     // Unpack the first parameter from the vector
@@ -73,35 +75,37 @@ public:
     std::vector<std::string> restOfVec(++paramVec.begin(), paramVec.end());
 
     // Recurse, placing `param` at the end of the parameter pack
-    return CallVector_R<N - 1, F, const std::string&, PTs...>::callVec(fun,
-                                                                       input,
-                                                                       restOfVec,
-                                                                       params...,
-                                                                       param);
+    return CallVector_R<N - 1, F, I, const std::string&, PTs...>::callVec(fun,
+                                                                          input,
+                                                                          restOfVec,
+                                                                          params...,
+                                                                          param);
   }
 };
 
 /**
  * The base case of CallVector_R, in which all parameters have been moved from the parameter vector into the parameter
- * pack, and which calls the supplied function on the input string and parameter pack.
+ * pack, and which calls the supplied function on the input and parameter pack.
  *
  * @tparam F the type of the function to be called
- * @tparam PTs a parameter pack of the types of the parameters to be passed, with the input string, into the function
+ * @tparam I the type of the input
+ * @tparam PTs a parameter pack of the types of the parameters to be passed, with the input, into the function
  */
 template<typename F,
+    typename I,
     typename... PTs>
-class CallVector_R<0, F, PTs...> {
+class CallVector_R<0, F, I, PTs...> {
 public:
   /**
-   * Calls the given function on the given input string and parameter pack
+   * Calls the given function on the given input and parameter pack
    *
    * @param fun the function to call
-   * @param input the input string
+   * @param input the input
    * @param params the parameter pack of the remaining parameters
    * @return the result of calling `fun` on `params...`
    */
   static decltype(auto) callVec(F fun,
-                                const std::string& input,
+                                I input,
                                 const std::vector<std::string>&/*unused*/,
                                 PTs... params) {
     return fun(input, params...);
@@ -109,25 +113,26 @@ public:
 };
 
 /**
- * This class provides a static function to call a given function with the given input string and the contents of a
- * given parameter vector as parameters to the function
+ * This class provides a static function to call a given function with the given input and the contents of a given
+ * parameter vector as parameters to the function
  *
  * @tparam N the number of parameters F takes, excluding the input string
  * @tparam F the type of the function to be called on the supplied parameters
+ * @tparam I the type of the input
  */
-template<int N, typename F>
+template<int N, typename F, typename I>
 class CallVector {
 public:
   /**
    * Calls function `fun` with `input` and the contents of `params` as parameters
    *
    * @param fun the function to call
-   * @param input the input string
+   * @param input the input
    * @param params the remaining parameters
    * @return the result of calling `fun(input, params...)`
    */
   static decltype(auto) callVec(F fun,
-                                const std::string& input,
+                                I input,
                                 const std::vector<std::string>& params) {
     // Peel off the first parameter
     std::string param = params[0];
@@ -136,30 +141,31 @@ public:
     std::vector<std::string> restOfParams(++params.begin(), params.end());
 
     // Use CallVector_R to recurse over the remaining parameters
-    return CallVector_R<N - 1, F, const std::string&>::callVec(fun,
-                                                               input,
-                                                               restOfParams,
-                                                               param);
+    return CallVector_R<N - 1, F, I, const std::string&>::callVec(fun,
+                                                                  input,
+                                                                  restOfParams,
+                                                                  param);
   }
 };
 
 /**
- * Special case of CallVector for functions that only take a single input string
+ * Special case of CallVector for functions that only take a single input
  *
  * @tparam F the type of the supplied function
+ * @tparam I the type of the input
  */
-template<typename F>
-class CallVector<0, F> {
+template<typename F, typename I>
+class CallVector<0, F, I> {
 public:
   /**
    * Calls `fun` on `input`
    *
    * @param fun the function to call
-   * @param input the input string
+   * @param input the input
    * @return the result of `fun(input)`
    */
   static decltype(auto) callVec(F fun,
-                                const std::string& input,
+                                I input,
                                 const std::vector<std::string>& /*unused*/) {
     return fun(input);
   }
@@ -212,7 +218,8 @@ public:
    * @return the result of calling the function on the parameters
    */
   std::string callVec(const std::string& input, const std::vector<std::string>& params) override {
-    return CallVector<sizeof...(Ts) - 1, decltype(this->callback)>::callVec(this->callback, input, params);
+    return CallVector<sizeof...(Ts) - 1, decltype(this->callback), const std::string&>::callVec(this->callback, input,
+                                                                                                params);
   }
 
 private:
