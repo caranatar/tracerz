@@ -8,6 +8,7 @@
  * Test class satisfying UniformRandomBitGenerator. Returns the value
  * it was constructed with
  */
+ template <int MIN, int MAX>
 class TestRNG {
 public:
   typedef int result_type;
@@ -22,12 +23,12 @@ public:
       , flippy(t.flippy) {
   }
 
-  result_type min() const {
-    return this->value;
+  static result_type min() {
+    return MIN;
   }
 
-  result_type max() const {
-    return this->value;
+  static result_type max() {
+    return MAX;
   }
 
   result_type operator()() {
@@ -234,25 +235,30 @@ TEST_CASE("Custom rng", "[tracerz]") {
       {"deep", {"#dl#",  "#dr#"}}
   };
 
+  SECTION("RNG specialization only") {
+    tracerz::Grammar zgr(grammar, TestRNG<0,1>(0));
+    REQUIRE(zgr.flatten("#rule#") == "one");
+  }
+
   SECTION("Left selection") {
-    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(0));
+    tracerz::Grammar<TestRNG<0,1>, TestDistribution> zgr(grammar, TestRNG<0,1>(0));
     REQUIRE(zgr.flatten("#rule#") == "one");
     REQUIRE(zgr.flatten("#deep#") == "one");
   }
 
   SECTION("Right selection") {
-    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(1));
+    tracerz::Grammar<TestRNG<0,1>, TestDistribution> zgr(grammar, TestRNG<0,1>(1));
     REQUIRE(zgr.flatten("#rule#") == "two");
     REQUIRE(zgr.flatten("#deep#") == "four");
   }
 
   SECTION("Left alternating selection") {
-    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(0, true));
+    tracerz::Grammar<TestRNG<0,1>, TestDistribution> zgr(grammar, TestRNG<0,1>(0, true));
     REQUIRE(zgr.flatten("#deep#") == "two");
   }
 
   SECTION("Right alternating selection") {
-    tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(1, true));
+    tracerz::Grammar<TestRNG<0,1>, TestDistribution> zgr(grammar, TestRNG<0,1>(1, true));
     REQUIRE(zgr.flatten("#deep#") == "three");
   }
 }
