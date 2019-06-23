@@ -87,7 +87,8 @@ template<int N,
 class CallVector_R {
 public:
   /**
-   * Unpacks the first parameter from the parameter vector, moves it to the parameter pack, and then recurses
+   * Unpacks the first parameter from the parameter vector, moves it to the parameter pack, and then recurses. When it
+   * is fully unpacked, calls the function on the parameter pack.
    *
    * @param fun the function to ultimately call on the input and list of parameters
    * @param input the input to pass to `fun`
@@ -99,47 +100,22 @@ public:
                                 I input,
                                 std::vector<std::string> paramVec,
                                 PTs... params) {
-    // Unpack the first parameter from the vector
-    std::string param = paramVec[0];
+    if constexpr (N > 0) {
+      // Unpack the first parameter from the vector
+      std::string param = paramVec[0];
 
-    // Create a vector containing the rest of the parameters
-    std::vector<std::string> restOfVec(++paramVec.begin(), paramVec.end());
+      // Create a vector containing the rest of the parameters
+      std::vector<std::string> restOfVec(++paramVec.begin(), paramVec.end());
 
-    // Recurse, placing `param` at the end of the parameter pack
-    return CallVector_R<N - 1, F, I, const std::string&, PTs...>::callVec(fun,
-                                                                          input,
-                                                                          restOfVec,
-                                                                          params...,
-                                                                          param);
-  }
-};
-
-/**
- * The base case of CallVector_R, in which all parameters have been moved from the parameter vector into the parameter
- * pack, and which calls the supplied function on the input and parameter pack.
- *
- * @tparam F the type of the function to be called
- * @tparam I the type of the input
- * @tparam PTs a parameter pack of the types of the parameters to be passed, with the input, into the function
- */
-template<typename F,
-    typename I,
-    typename... PTs>
-class CallVector_R<0, F, I, PTs...> {
-public:
-  /**
-   * Calls the given function on the given input and parameter pack
-   *
-   * @param fun the function to call
-   * @param input the input
-   * @param params the parameter pack of the remaining parameters
-   * @return the result of calling `fun` on `params...`
-   */
-  static decltype(auto) callVec(F fun,
-                                I input,
-                                const std::vector<std::string>&/*unused*/,
-                                PTs... params) {
-    return fun(input, params...);
+      // Recurse, placing `param` at the end of the parameter pack
+      return CallVector_R<N - 1, F, I, const std::string&, PTs...>::callVec(fun,
+                                                                            input,
+                                                                            restOfVec,
+                                                                            params...,
+                                                                            param);
+    } else {
+      return fun(input, params...);
+    }
   }
 };
 
@@ -165,40 +141,21 @@ public:
   static decltype(auto) callVec(F fun,
                                 I input,
                                 const std::vector<std::string>& params) {
-    // Peel off the first parameter
-    std::string param = params[0];
+    if constexpr (N > 0) {
+      // Peel off the first parameter
+      std::string param = params[0];
 
-    // Create a vector of the remaining parameters
-    std::vector<std::string> restOfParams(++params.begin(), params.end());
+      // Create a vector of the remaining parameters
+      std::vector<std::string> restOfParams(++params.begin(), params.end());
 
-    // Use CallVector_R to recurse over the remaining parameters
-    return CallVector_R<N - 1, F, I, const std::string&>::callVec(fun,
-                                                                  input,
-                                                                  restOfParams,
-                                                                  param);
-  }
-};
-
-/**
- * Special case of CallVector for functions that only take a single input
- *
- * @tparam F the type of the supplied function
- * @tparam I the type of the input
- */
-template<typename F, typename I>
-class CallVector<0, F, I> {
-public:
-  /**
-   * Calls `fun` on `input`
-   *
-   * @param fun the function to call
-   * @param input the input
-   * @return the result of `fun(input)`
-   */
-  static decltype(auto) callVec(F fun,
-                                I input,
-                                const std::vector<std::string>& /*unused*/) {
-    return fun(input);
+      // Use CallVector_R to recurse over the remaining parameters
+      return CallVector_R<N - 1, F, I, const std::string&>::callVec(fun,
+                                                                    input,
+                                                                    restOfParams,
+                                                                    param);
+    } else {
+      return fun(input);
+    }
   }
 };
 
@@ -1497,16 +1454,23 @@ const details::callback_map_t& getBaseExtendedModifiers() {
   // Already initialized
   if (!baseMods.empty()) return baseMods;
 
+  // Pops the top rule off the rulestack for the given ruleName in the given tree's runtime dictionary
   baseMods["pop!!"] = wrap([](const std::shared_ptr<Tree>& tree, const std::string& ruleName) {
+    // Get the runtime dictionary
     details::runtime_dictionary_t& runtimeDictionary = tree->getRuntimeDictionary();
+
+    // If there's a matching rule and its stack isn't empty...
     if (runtimeDictionary.find(ruleName) != runtimeDictionary.end() && !runtimeDictionary[ruleName].empty()) {
+      // Pop the top ruleset off the rulet stack
       runtimeDictionary[ruleName].pop();
 
+      // If this causes the rulestack to become empty, delete the entry from the runtime dictionary
       if (runtimeDictionary[ruleName].empty()) {
         runtimeDictionary.erase(ruleName);
       }
     }
 
+    // Return the empty string
     return "";
   });
 
