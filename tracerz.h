@@ -1021,8 +1021,8 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                                              details::getModifierRegex(),
                                              0),
                   std::sregex_token_iterator(),
-                  // This lambda takes in a match object, gets the string representation of the match, removes the
-                  // leading dot (.) from the modifier string, and adds it to the list of modifiers
+        // This lambda takes in a match object, gets the string representation of the match, removes the
+        // leading dot (.) from the modifier string, and adds it to the list of modifiers
                   [&mods](auto& mtch) {
                     std::string modifier = mtch.str().substr(1, mtch.str().size());
                     mods.push_back(modifier);
@@ -1129,7 +1129,7 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                                              details::getCommaRegex(),
                                              -1),
                   std::sregex_token_iterator(),
-                  // This lambda extracts the string from each match object and adds it to the json list created above.
+        // This lambda extracts the string from each match object and adds it to the json list created above.
                   [&arr](auto& mtch) {
                     arr.push_back(mtch.str());
                   });
@@ -1527,6 +1527,7 @@ const details::callback_map_t& getBaseEngModifiers() {
   // Return the map
   return baseMods;
 }
+
 /**
  * Represents a grammar, based on a given input grammar, using a given random number generator and uniform distribution
  * type.
@@ -1564,6 +1565,17 @@ public:
    */
   std::shared_ptr<Tree> getTree(const std::string& input) const {
     std::shared_ptr<Tree> tree(new Tree(input, this->jsonGrammar));
+    return tree;
+  }
+
+  /**
+   * Creates a tree with the given input string as the input to its root node, fully expands the tree, then returns it.
+   */
+  std::shared_ptr<Tree> getExpandedTree(const std::string& input) {
+    auto tree = this->getTree(input);
+    // While there are unexpanded nodes, expand the next one
+    while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng));
+    // Return the tree
     return tree;
   }
 
@@ -1629,10 +1641,7 @@ public:
    */
   std::string flatten(const std::string& input) {
     // Get a tree rooted with the given input string
-    auto tree = this->getTree(input);
-
-    // While there are unexpanded nodes, expand the next one
-    while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng));
+    auto tree = this->getExpandedTree(input);
 
     // Flatten the tree using this grammar's modifier functions
     return tree->flatten(this->getModifierFunctions());
