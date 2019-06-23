@@ -10,6 +10,7 @@ A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery l
 * [Basic usage](#basic-usage)
     * [Create a grammar](#create-a-grammar)
     * [Expanding rules](#expanding-rules)
+    * [Custom RNG](#custom-rng)
 * [Future plans](#future-plans)
 
 ## About
@@ -86,6 +87,29 @@ Then, to retrieve the output from the tree, simply call `flatten` on it with the
 
 ```cpp
 std::string output = tree->flatten(grammar.getModifierFunctions()); // returns "output is output"
+```
+
+### Custom RNG
+By default, tracerz uses the C++ standard library's Mersenne Twister algorithm `std::mt19937` for random number
+generation, seeded with the current time, and `std::uniform_int_distribution` to provide a uniform distribution across
+options when selecting a single expansion from a rule defined as a list. If you want to use a standard library generator
+,or any other generator which conforms to the C++ standard's definition of `UniformRandomBitGenerator`, with a different
+seed, you can pass the RNG into the constructor, which will automatically deduce the type:
+
+```cpp
+// Using a standard random number generator
+tracerz::Grammar grammar(inGrammar, std::mt19937(seed));
+
+// TestRNG satifies the requirements of UniformRandomBitGenerator
+tracerz::Grammar grammar(inGrammar, TestRNG(seed));
+```
+
+To also override the default distribution generator (`std::uniform_int_distribution`), you must specify its type when
+constructing a `tracerz::Grammar` object:
+
+```cpp
+// Using a custom rng and distribution
+tracerz::Grammar<TestRNG, TestDistribution> zgr(grammar, TestRNG(seed));
 ```
 
 ## Future plans
