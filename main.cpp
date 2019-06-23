@@ -66,6 +66,13 @@ TEST_CASE("Tree", "[tracerz]") {
   auto tree = zgr.getTree("#rule#");
   REQUIRE(tree->getFirstLeaf() == tree->getRoot());
   REQUIRE(tree->getFirstUnexpandedLeaf() == tree->getRoot());
+  while (tree->template expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
+      zgr.getRNG()));
+  REQUIRE(tree->flatten(zgr.getModifierFunctions()) == "output");
+  // Test flattening already expanded tree
+  while (tree->template expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
+                                                                                            zgr.getRNG()));
+  REQUIRE("abc" + tree->flatten(zgr.getModifierFunctions()) == "abcoutput");
 }
 
 TEST_CASE("TreeNode", "[tracerz]") {
