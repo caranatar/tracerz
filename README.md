@@ -1,24 +1,16 @@
 [![Build Status](https://travis-ci.com/caranatar/tracerz.svg?branch=master)](https://travis-ci.com/caranatar/tracerz)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/5d3454d25fcd4b33a173af36b2ee8b6a)](https://app.codacy.com/app/caranatar/tracerz?utm_source=github.com&utm_medium=referral&utm_content=caranatar/tracerz&utm_campaign=Badge_Grade_Dashboard)
 [![Coverage Status](https://coveralls.io/repos/github/caranatar/tracerz/badge.svg)](https://coveralls.io/github/caranatar/tracerz)
 # tracerz
 A modern C++ (C++17) procedural generation tool based on @galaxykate's tracery language
 
 ## Table of contents
 * [About](#about)
-
 * [Dependencies](#dependencies)
-
 * [Basic usage](#basic-usage)
-
-  * [Create a grammar](#create-a-grammar)
-  
-  * [Expanding rules](#expanding-rules)
-  
-  * [Custom RNG](#custom-rng)
-  
+    * [Create a grammar](#create-a-grammar)
+    * [Expanding rules](#expanding-rules)
+    * [Custom RNG](#custom-rng)
 * [Future plans](#future-plans)
-
 
 ## About
 tracerz is a single-header-file procedural generation tool heavily based on @galaxykate's javascript tool tracery. To
