@@ -130,11 +130,11 @@ std::function<std::string(const std::string&, const std::string&)> noise = [](co
 grammar.addModifier("noise", noise);
 ```
 
-In the language, these can be used to the same effect as `#rule.meow#` and `#rule.noise( meow!)`. Note the leading space
+In the language, these can be used to the same effect as `#rule.meow#` and `#rule.noise( meow!)#`. Note the leading space
 in the second example. tracerz maintains whitespace in parameters; only commas separating parameters are removed.
 
 ### Step-by-step tree expansion
-To get an unexpanded tree rooted with the input string instead, call `getTree(input)`:
+To get an unexpanded tree rooted with the input string, call `getTree(input)`:
 
 ```cpp
 std::shared_ptr<tracerz::Tree> tree = grammar.getTree("output is #rule#");
@@ -154,7 +154,7 @@ call until it returns false. To get the flattened state of the tree at any step,
 
 ## Library concepts
 See @galaxykate's [tracery repo](https://github.com/galaxykate/tracery/tree/tracery2#library-concepts) for a description
-of language concepts. One important note is that tracerz does not currently support the concept stacks for rulesets.
+of language concepts. One important note is that tracerz does not currently support the concept of stacks for rulesets.
 Only the input grammar's definitions and the latest runtime definition are tracked.
 
 ## Building API docs
