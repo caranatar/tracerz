@@ -334,6 +334,14 @@ TEST_CASE("Custom rng", "[tracerz]") {
   }
 }
 
+TEST_CASE("Object handlers", "[tracerz]") {
+  nlohmann::json grammar = {
+      {"rule", "output"}
+  };
+  tracerz::Grammar zgr(grammar);
+  zgr.addObjHandlers(tracerz::getBaseObjectHandlers<std::decay_t<decltype(zgr.getRNG())>>());
+}
+
 TEST_CASE("Complex grammar", "[tracerz]") {
   nlohmann::json grammar = {
     {"name", {"Arjun", "Yuuma", "Darcy", "Mia", "Chiaki", "Izzi", "Azra", "Lina"}},

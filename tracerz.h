@@ -34,6 +34,7 @@ public:
 };
 
 namespace details {
+
 /**
  * This interface represents a generic modifier function that takes an input string and 0 or more string params, and
  * returns a string.
@@ -194,6 +195,33 @@ public:
   }
 };
 
+template<typename RNG>
+class IObjHandler {
+public:
+  virtual nlohmann::json handleObj(const nlohmann::json& inGrammar, RNG& rng) = 0;
+
+  virtual ~IObjHandler() = default;
+};
+
+template<typename RNG>
+class ObjHandlerFn : public IObjHandler<RNG> {
+public:
+  typedef std::function<nlohmann::json(const nlohmann::json&, RNG& rng)> obj_handler_fn_t;
+
+  explicit ObjHandlerFn(const obj_handler_fn_t& fun)
+      : callback(fun) {
+  }
+
+  nlohmann::json handleObj(const nlohmann::json& inGrammar, RNG& rng) override {
+    return this->callback(inGrammar, rng);
+  }
+
+  ~ObjHandlerFn() override = default;
+
+private:
+  obj_handler_fn_t callback;
+};
+
 /**
  * Encapsulates a modifier function taking one or more string inputs and returning a string. Provides two calling
  * methods: a parameter pack of type Ts or a vector of strings with size equal to the number of parameters taken by the
@@ -306,6 +334,10 @@ typedef std::map<std::string, std::shared_ptr<IModifierFn>> callback_map_t;
 
 /** Represents a map of rule names to ruleset stacks */
 typedef std::map<std::string, std::stack<nlohmann::json>> runtime_dictionary_t;
+
+/** Represents a map of handler names to object handlers */
+template<typename RNG>
+using obj_handler_map_t = std::map<std::string, std::shared_ptr<IObjHandler<RNG>>>;
 
 /**
  * Returns the action regular expression
@@ -1251,6 +1283,47 @@ private:
   std::stack<std::shared_ptr<TreeNode>> expandingNodes;
 };
 
+template<typename RNG>
+const details::obj_handler_map_t<RNG>& getBaseObjectHandlers() {
+  static auto wrap = [](const typename details::ObjHandlerFn<RNG>::obj_handler_fn_t& fun) {
+    std::shared_ptr<details::IObjHandler<RNG>> ptr(new details::ObjHandlerFn<RNG>(fun));
+    return ptr;
+  };
+
+  static details::obj_handler_map_t<RNG> baseHandlers;
+
+  if (!baseHandlers.empty()) return baseHandlers;
+
+  baseHandlers["binomial-distribution"] = wrap([](const nlohmann::json& inGrammar, RNG& rng) {
+    nlohmann::json ret;
+
+    // TODO: indicate error
+    if (!inGrammar.is_object()) return ret;
+
+    double success = 0.5;
+    const std::string successKey = "success-rate";
+    if (inGrammar.find(successKey) != inGrammar.end()) {
+      nlohmann::json value = inGrammar[successKey];
+      if (value.is_number_float()) success = value.get<double>();
+    }
+
+    nlohmann::json arr = nlohmann::json::array();
+    const std::string valuesKey = "values";
+    if (inGrammar.find(valuesKey) != inGrammar.end()) {
+      nlohmann::json value = inGrammar[valuesKey];
+      if (value.is_array()) arr = value;
+
+      if (value.is_string()) arr.push_back(value);
+    }
+
+    auto len = arr.size();
+    std::binomial_distribution<> dist(len - 1, success);
+    return arr[dist(rng)];
+  });
+
+  return baseHandlers;
+}
+
 /**
  * Gets the base extended modifiers. Currently, this is only `pop!!`, a tree modifier that pops the top ruleset off of a
  * given rule stack.
@@ -1490,6 +1563,12 @@ public:
     }
   }
 
+  void addObjHandlers(const details::obj_handler_map_t<RNG>& ohs) {
+    for (auto& oh : ohs) {
+      this->objectHandlers[oh.first] = oh.second;
+    }
+  }
+
   /**
    * Adds a pointer to a modifier to this grammar
    *
@@ -1556,6 +1635,9 @@ private:
 
   /** The map from modifier names to modifier functions */
   details::callback_map_t modifierFunctions;
+
+  /** The map from handler names to object handlers */
+  details::obj_handler_map_t<RNG> objectHandlers;
 };
 
 } // End namespace tracerz
