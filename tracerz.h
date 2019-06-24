@@ -1484,7 +1484,7 @@ private:
 
 /**
  * Gets the base extended modifiers. Currently, this is only `pop!!`, a tree modifier that pops the top ruleset off of a
- * given rulestack.
+ * given rule stack.
  *
  * @return the base extended modifiers
  */
@@ -1500,7 +1500,7 @@ const details::callback_map_t& getBaseExtendedModifiers() {
   // Already initialized
   if (!baseMods.empty()) return baseMods;
 
-  // Pops the top rule off the rulestack for the given ruleName in the given tree's runtime dictionary
+  // Pops the top rule off the rule stack for the given ruleName in the given tree's runtime dictionary
   baseMods["pop!!"] = wrap([](const std::shared_ptr<Tree>& tree, const std::string& ruleName) {
     // Get the runtime dictionary
     details::runtime_dictionary_t& runtimeDictionary = tree->getRuntimeDictionary();
@@ -1510,7 +1510,7 @@ const details::callback_map_t& getBaseExtendedModifiers() {
       // Pop the top ruleset off the rulet stack
       runtimeDictionary[ruleName].pop();
 
-      // If this causes the rulestack to become empty, delete the entry from the runtime dictionary
+      // If this causes the rule stack to become empty, delete the entry from the runtime dictionary
       if (runtimeDictionary[ruleName].empty()) {
         runtimeDictionary.erase(ruleName);
       }
