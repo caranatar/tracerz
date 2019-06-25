@@ -238,11 +238,13 @@ public:
   static constexpr bool is_tree_modifier = std::is_same_v<std::shared_ptr<Tree>, std::decay_t<I>>;
   static constexpr bool is_tree_node_modifier = std::is_same_v<std::shared_ptr<TreeNode>, std::decay_t<I>>;
 
+  typedef std::function<std::string(I, Ts...)> modifier_fn_t;
+
   /**
    * Construct a ModifierFn for the given modifier function
    * @param fun the modifier function
    */
-  explicit ModifierFn(std::function<std::string(I, Ts...)> fun)
+  explicit ModifierFn(modifier_fn_t fun)
       : callback(std::move(fun)) {
   }
 
@@ -326,7 +328,7 @@ public:
 
 private:
   /** The encapsulated function */
-  std::function<std::string(I, Ts...)> callback;
+  modifier_fn_t callback;
 };
 
 /** Represents a mapping of modifier names to modifier functions */
@@ -856,7 +858,7 @@ public:
   }
 
   template<typename RNG, typename UniformIntDistributionT>
-  void expandNode(const nlohmann::json&, RNG&, details::runtime_dictionary_t&);
+  void expandNode(const nlohmann::json&, RNG&, details::runtime_dictionary_t&, details::obj_handler_map_t<RNG>&);
 
   std::vector<std::shared_ptr<TreeNode>> getChildren() const { return this->children; }
 
@@ -953,7 +955,8 @@ private:
 template<typename RNG, typename UniformIntDistributionT>
 void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                           RNG& rng,
-                          details::runtime_dictionary_t& runtimeDictionary) {
+                          details::runtime_dictionary_t& runtimeDictionary,
+                          details::obj_handler_map_t<RNG>& objHandlers) {
   // If the node is complete, nothing to do
   if (this->isNodeComplete()) return;
 
@@ -987,13 +990,15 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     if (runtimeDictionary.find(ruleName) != runtimeDictionary.end())
       ruleContents = runtimeDictionary[ruleName].top();
 
-    // This will be the output of expanding the rule
-    std::string output;
-
     // If ruleContents doesn't contain anything, there is no runtime definition for this rule name, attempt to get it
     // from the input grammar
     if (ruleContents.is_null())
       ruleContents = jsonGrammar[ruleName];
+
+    if (ruleContents.is_null()) throw "couldnt find a rule"; // TODO: yup really bad still
+
+    // This will be the output of expanding the rule
+    std::string output;
 
     // If the rule contents are a string, assign the output
     if (ruleContents.is_string()) {
@@ -1005,6 +1010,26 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     if (ruleContents.is_array()) {
       UniformIntDistributionT dist(0, ruleContents.size() - 1);
       output = ruleContents[dist(rng)];
+    }
+
+    if (ruleContents.is_object()) {
+      std::string handlerName;
+      if (ruleContents.find("handler") == ruleContents.end()) {
+        // TODO: WOW this is bad. fix this.
+        throw "no handler";
+      }
+      handlerName = ruleContents["handler"];
+      if (objHandlers.find(handlerName) == objHandlers.end()) {
+        // TODO: BAD BAD BAD
+        throw "no such handler";
+      }
+      auto handler = objHandlers[handlerName];
+      auto handlerResult = handler->handleObj(ruleContents, rng);
+      if (!handlerResult.is_string()) {
+        // TODO: Absolutely terrible
+        throw "handler result not a string";
+      }
+      output = handlerResult;
     }
 
     // For each modifier in the list of modifiers, add it to this node's list of modifiers
@@ -1061,7 +1086,7 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     this->addChild(rule);
 
     // Get the newly added child, and pass down the key name
-    this->children.back()->setKeyName(key);
+    this->children.back()->setKeyName(key); // TODO: clean this up
   } else if (details::containsOnlyKeyWithTextAction(this->input)) {
     //   [key:text] - sets key to "text"
     //   [key:a,b,c,...] - sets key to a list
@@ -1149,6 +1174,9 @@ public:
        const nlohmann::json& grammar)
       : root(new TreeNode(input))
       , jsonGrammar(grammar) {
+    for (auto it = jsonGrammar.begin(); it != jsonGrammar.end(); it++) {
+      this->runtimeDictionary[it.key()].push(it.value());
+    }
   }
 
   /**
@@ -1175,7 +1203,8 @@ public:
     // Expand the node
     next->expandNode<RNG, UniformIntDistributionT>(this->jsonGrammar,
                                                    rng,
-                                                   this->runtimeDictionary);
+                                                   this->runtimeDictionary,
+                                                   objHandlers);
 
     // If the node has no children awaiting expansion
     if (next->areChildrenComplete()) {
@@ -1294,23 +1323,23 @@ const details::obj_handler_map_t<RNG>& getBaseObjectHandlers() {
 
   if (!baseHandlers.empty()) return baseHandlers;
 
-  baseHandlers["binomial-distribution"] = wrap([](const nlohmann::json& inGrammar, RNG& rng) {
+  baseHandlers["binomial-distribution"] = wrap([](const nlohmann::json& inObj, RNG& rng) {
     nlohmann::json ret;
 
     // TODO: indicate error
-    if (!inGrammar.is_object()) return ret;
+    if (!inObj.is_object()) return ""_json;
 
     double success = 0.5;
     const std::string successKey = "success-rate";
-    if (inGrammar.find(successKey) != inGrammar.end()) {
-      nlohmann::json value = inGrammar[successKey];
-      if (value.is_number_float()) success = value.get<double>();
+    if (inObj.find(successKey) != inObj.end()) {
+      nlohmann::json value = inObj[successKey];
+      if (value.is_number()) success = value.get<double>();
     }
 
     nlohmann::json arr = nlohmann::json::array();
     const std::string valuesKey = "values";
-    if (inGrammar.find(valuesKey) != inGrammar.end()) {
-      nlohmann::json value = inGrammar[valuesKey];
+    if (inObj.find(valuesKey) != inObj.end()) {
+      nlohmann::json value = inObj[valuesKey];
       if (value.is_array()) arr = value;
 
       if (value.is_string()) arr.push_back(value);
@@ -1319,6 +1348,28 @@ const details::obj_handler_map_t<RNG>& getBaseObjectHandlers() {
     auto len = arr.size();
     std::binomial_distribution<> dist(len - 1, success);
     return arr[dist(rng)];
+  });
+
+  baseHandlers["discrete-distribution"] = wrap([](const nlohmann::json& inObj, RNG& rng) {
+    const std::string weightsKey = "weights";
+    if (inObj.find(weightsKey) == inObj.end()) return ""_json; // TODO: handle error correctly
+    nlohmann::json weightsArr = inObj[weightsKey];
+    if (!weightsArr.is_array()) return ""_json; // TODO: handle error correctly
+    std::vector<double> weights;
+    std::for_each(weightsArr.begin(), weightsArr.end(), [&weights](const nlohmann::json& weight) {
+      if (!weight.is_number()) return; // TODO: handle error correctly
+      weights.push_back(weight.get<double>());
+    });
+
+    const std::string valuesKey = "values";
+    if (inObj.find(valuesKey) == inObj.end()) return ""_json; // TODO: handle error correctly
+    nlohmann::json valuesArr = inObj[valuesKey];
+    if (!valuesArr.is_array()) return ""_json; // TODO: handle error correctly
+    std::vector<nlohmann::json> values;
+    std::copy(valuesArr.begin(), valuesArr.end(), std::back_inserter(values));
+
+    std::discrete_distribution<> dist(weights.begin(), weights.end());
+    return values[dist(rng)];
   });
 
   return baseHandlers;
@@ -1349,7 +1400,7 @@ const details::callback_map_t& getBaseExtendedModifiers() {
 
     // If there's a matching rule and its stack isn't empty...
     if (runtimeDictionary.find(ruleName) != runtimeDictionary.end() && !runtimeDictionary[ruleName].empty()) {
-      // Pop the top ruleset off the rulet stack
+      // Pop the top ruleset off the rule stack
       runtimeDictionary[ruleName].pop();
 
       // If this causes the rule stack to become empty, delete the entry from the runtime dictionary
@@ -1547,7 +1598,8 @@ public:
   std::shared_ptr<Tree> getExpandedTree(const std::string& input) {
     auto tree = this->getTree(input);
     // While there are unexpanded nodes, expand the next one
-    while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng));
+    while (tree->template expand<RNG, UniformIntDistributionT>(this->getModifierFunctions(), this->rng,
+                                                               this->objectHandlers));
     // Return the tree
     return tree;
   }
@@ -1565,8 +1617,17 @@ public:
 
   void addObjHandlers(const details::obj_handler_map_t<RNG>& ohs) {
     for (auto& oh : ohs) {
-      this->objectHandlers[oh.first] = oh.second;
+      this->addObjHandler(oh.first, oh.second);
     }
+  }
+
+  void addObjHandler(const std::string& name, const std::shared_ptr<details::IObjHandler<RNG>>& handler) {
+    this->objectHandlers[name] = handler;
+  }
+
+  void addObjHandler(const std::string& name, typename details::ObjHandlerFn<RNG>::obj_handler_fn_t fun) {
+    std::shared_ptr<details::IObjHandler<RNG>> ptr(new details::ObjHandlerFn<RNG>(fun));
+    this->addObjHandler(name, ptr);
   }
 
   /**
@@ -1601,6 +1662,10 @@ public:
    */
   details::callback_map_t& getModifierFunctions() {
     return this->modifierFunctions;
+  }
+
+  details::obj_handler_map_t<RNG>& getObjectHandlers() {
+    return this->objectHandlers;
   }
 
   /**
