@@ -65,12 +65,24 @@ TEST_CASE("Tree", "[tracerz]") {
   tracerz::Grammar zgr(oneSub);
   auto tree = zgr.getTree("#rule#");
   while (tree->template expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
-      zgr.getRNG()));
+                                                                                            zgr.getRNG(),
+                                                                                            zgr.getObjectHandlers()));
   REQUIRE(tree->flatten(zgr.getModifierFunctions()) == "output");
   // Test flattening already expanded tree
   while (tree->template expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
-                                                                                            zgr.getRNG()));
+                                                                                            zgr.getRNG(),
+                                                                                            zgr.getObjectHandlers()));
   REQUIRE("abc" + tree->flatten(zgr.getModifierFunctions()) == "abcoutput");
+
+  REQUIRE(tree->getRuntimeDictionary()["rule"].top() == oneSub["rule"]);
+
+  tree = zgr.getTree("#rule#");
+  tree->getRuntimeDictionary()["rule"].push("discordia");
+  REQUIRE(tree->getRuntimeDictionary()["rule"].top() == "discordia");
+  while (tree->expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
+                                                                                   zgr.getRNG(),
+                                                                                   zgr.getObjectHandlers()));
+  REQUIRE(tree->flatten(zgr.getModifierFunctions()) == "discordia");
 }
 
 TEST_CASE("TreeNode", "[tracerz]") {
@@ -336,10 +348,37 @@ TEST_CASE("Custom rng", "[tracerz]") {
 
 TEST_CASE("Object handlers", "[tracerz]") {
   nlohmann::json grammar = {
-      {"rule", "output"}
+      {"rule",     {
+                       {"handler", "test"},
+                       {"output",  "hail eris"}
+                   }
+      },
+      {"discrete", {
+                       {"handler", "discrete-distribution"},
+                       {"weights", {100, 0, 0, 0}},
+                       {"values", {"one", "two", "three", "four"}}
+                   }}
   };
+
   tracerz::Grammar zgr(grammar);
-  zgr.addObjHandlers(tracerz::getBaseObjectHandlers<std::decay_t<decltype(zgr.getRNG())>>());
+  using RNG = std::decay_t<decltype(zgr.getRNG())>;
+  zgr.addObjHandlers(tracerz::getBaseObjectHandlers<RNG>());
+  tracerz::details::ObjHandlerFn<RNG>::obj_handler_fn_t handler = [](const nlohmann::json& obj, RNG& rng) {
+    return obj["output"];
+  };
+  zgr.addObjHandler("test", handler);
+  REQUIRE(zgr.flatten("#rule#") == "hail eris");
+  auto tree = zgr.getExpandedTree("#discrete#");
+  REQUIRE(tree->flatten(zgr.getModifierFunctions()) == "one");
+
+  auto tree2 = zgr.getTree("#discrete#");
+  nlohmann::json obj = tree2->getRuntimeDictionary()["discrete"].top();
+  obj["weights"][0] = 0;
+  obj["weights"][3] = 100;
+  tree2->getRuntimeDictionary()["discrete"].push(obj);
+  while (tree2->expand<RNG, std::uniform_int_distribution<>>(zgr.getModifierFunctions(), zgr.getRNG(),
+                                                             zgr.getObjectHandlers()));
+  REQUIRE(tree2->flatten(zgr.getModifierFunctions()) == "four");
 }
 
 TEST_CASE("Complex grammar", "[tracerz]") {
