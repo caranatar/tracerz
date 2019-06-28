@@ -64,7 +64,6 @@ TEST_CASE("Tree", "[tracerz]") {
   };
   tracerz::Grammar zgr(oneSub);
   auto tree = zgr.getTree("#rule#");
-  REQUIRE(tree->getFirstLeaf() == tree->getRoot());
   while (tree->template expand<decltype(zgr)::rng_t, decltype(zgr)::uniform_distribution_t>(zgr.getModifierFunctions(),
       zgr.getRNG()));
   REQUIRE(tree->flatten(zgr.getModifierFunctions()) == "output");

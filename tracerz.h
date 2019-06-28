@@ -627,17 +627,6 @@ bool containsParametricModifier(const std::string& input) {
 class TreeNode : public std::enable_shared_from_this<TreeNode> {
 public:
   /**
-   * Default constructor. Contains no input, used by the tree to point to certain nodes within the tree, from outside it
-   */
-  TreeNode()
-      : input()
-      , isNodeComplete_(false)
-      , prevLeaf(nullptr)
-      , nextLeaf(nullptr)
-      , isNodeHidden_(false) {
-  }
-
-  /**
    * Constructs a new tree node from the given parameters. The only required parameter is the input string, all others
    * default to nullptr
    *
@@ -645,14 +634,10 @@ public:
    * @param prev the leaf prior to this leaf
    * @param next the next leaf from this leaf
    */
-  explicit TreeNode(const std::string& input,
-                    std::shared_ptr<TreeNode> prev = nullptr,
-                    std::shared_ptr<TreeNode> next = nullptr)
+  explicit TreeNode(const std::string& input)
       : input(input)
       , isNodeComplete_(!details::containsRule(input)
                         && !details::containsOnlyActions(input))
-      , prevLeaf(std::move(prev))
-      , nextLeaf(std::move(next))
       , isNodeHidden_(false) {
   }
 
@@ -667,39 +652,14 @@ public:
    * @param inputStr the input string
    */
   void addChild(const std::string& inputStr) {
-    std::shared_ptr<TreeNode> prev = nullptr;
-    std::shared_ptr<TreeNode> next = nullptr;
-    if (this->children.empty()) {
-      // If there are no children, then the previous and next leaves are the ones of this node
-      prev = this->prevLeaf;
-      next = this->nextLeaf;
-    } else {
-      // If there are children, the new node's previous leaf is the last child and its next leaf is the one of this node
-      prev = this->children.back();
-      next = prev->nextLeaf;
-    }
-
     // Create the child with the input string, previous leaf, and next leaf
-    std::shared_ptr<TreeNode> child(new TreeNode(inputStr,
-                                                 prev,
-                                                 next));
-
-    // If the child's previous leaf is not null, set its next leaf to the new node
-    if (child->prevLeaf)
-      child->prevLeaf->nextLeaf = child;
-
-    // If the child's next leaf is not null, set its previous leaf to the new node
-    if (child->nextLeaf)
-      child->nextLeaf->prevLeaf = child;
+    std::shared_ptr<TreeNode> child(new TreeNode(inputStr));
 
     // If this is a hidden node, hide the child
     child->isNodeHidden_ = this->isNodeHidden_;
 
     // Add the child to the list of children
     this->children.push_back(child);
-
-    // This is no longer a leaf, unset its previous and next leaves
-    this->prevLeaf = this->nextLeaf = nullptr;
   }
 
   /**
@@ -846,47 +806,11 @@ public:
   const std::string& getInput() const { return this->input; }
 
   /**
-   * Gets the next leaf (if applicable). If this is the last leaf or if this node is not a leaf, will return nullptr.
-   *
-   * @return the next leaf (if applicable)
-   */
-  std::shared_ptr<TreeNode> getNextLeaf() const {
-    return this->nextLeaf;
-  }
-
-  /**
-   * Gets the previous leaf (if applicable). If this node is not a leaf, will return nullptr.
-   *
-   * @return the previous leaf (if applicable)
-   */
-  std::shared_ptr<TreeNode> getPrevLeaf() const {
-    return this->prevLeaf;
-  }
-
-  /**
    * Returns true if this node is complete (cannot be expanded)
    *
    * @return true if this node is complete (cannot be expanded)
    */
   bool isNodeComplete() const { return this->isNodeComplete_; }
-
-  /**
-   * Sets the next leaf
-   *
-   * @param next the next leaf
-   */
-  void setNextLeaf(std::shared_ptr<TreeNode> next) {
-    this->nextLeaf = std::move(next);
-  }
-
-  /**
-   * Sets the previous leaf
-   *
-   * @param next the previous leaf
-   */
-  void setPrevLeaf(std::shared_ptr<TreeNode> prev) {
-    this->prevLeaf = std::move(prev);
-  }
 
   /**
    * Marks this node has having a key with the given name, which will be set to the result of flattening this node and
@@ -943,12 +867,6 @@ private:
 
   /** The list of children this node has. */
   std::vector<std::shared_ptr<TreeNode>> children;
-
-  /** A pointer to the previous leaf if this is a leaf and one exists. */
-  std::shared_ptr<TreeNode> prevLeaf;
-
-  /** A pointer to the next leaf if this is a leaf and one exists. */
-  std::shared_ptr<TreeNode> nextLeaf;
 
   /** A key name if one has been set on this node. */
   std::optional<std::string> keyName;
@@ -1167,12 +1085,8 @@ public:
    */
   Tree(const std::string& input,
        const nlohmann::json& grammar)
-      : leafIndex(new TreeNode)
-      , root(new TreeNode(input))
+      : root(new TreeNode(input))
       , jsonGrammar(grammar) {
-    // Insert the root at the beginning of the leaf linked list, after the head
-    this->root->setPrevLeaf(this->leafIndex);
-    this->leafIndex->setNextLeaf(this->root);
   }
 
   /**
@@ -1263,15 +1177,6 @@ public:
 
     // Return true if there are still nodes to expand
     return !this->expandingNodes.empty();
-  }
-
-  /**
-   * Gets the current leftmost leaf of the tree.
-   *
-   * @return the current leftmost leaf of the tree
-   */
-  std::shared_ptr<TreeNode> getFirstLeaf() const {
-    return this->leafIndex->getNextLeaf();
   }
 
   /**
