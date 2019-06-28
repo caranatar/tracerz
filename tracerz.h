@@ -5,6 +5,7 @@
  */
 
 #include <cctype>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -21,6 +22,16 @@ namespace tracerz {
 class Tree;
 
 class TreeNode;
+
+class Exception : public std::runtime_error {
+public:
+  using std::runtime_error::runtime_error;
+};
+
+class WrongParametersException : public Exception {
+public:
+  using Exception::Exception;
+};
 
 namespace details {
 /**
@@ -160,6 +171,11 @@ public:
   static decltype(auto) callVec(F fun,
                                 I input,
                                 const std::vector<std::string>& params) {
+    if (N != params.size()) {
+      std::string msg = "Wrong number of parameters. Expected: " + std::to_string(N) + " but received "
+                        + std::to_string(params.size());
+      throw WrongParametersException(msg);
+    }
     if constexpr (N > 0) {
       // Peel off the first parameter
       std::string param = params[0];
@@ -744,24 +760,33 @@ public:
                                                -1),
                     std::sregex_token_iterator(),
                     std::back_inserter(params));
+
+          // Special case for "()". Decided to make this not pass an empty string even though "(,a)" will
+          // TODO: make a configuration option
+          if (params.size() == 1 && params[0].empty()) params.clear();
         }
 
         if (modFuns.find(modName) != modFuns.end()) {
-          // If the modifier name names a real modifier, call it with the appropriate input and parameters (if any), and
-          // update the output string.
-          auto& modFun = modFuns[modName];
-          if (modFun->isStringModifier()) {
-            output = modFun->callVec(output, params);
-          } else {
-            // Because of the way the parse tree is built, this node will never have actions attached to the front of
-            // the input. Therefore, the first capture group from this regex will be the rule name.
-            std::string ruleName = std::regex_replace(this->input, details::getRuleRegex(), "$1");
-
-            if (modFun->isTreeModifier()) {
-              output = modFun->callVec(tree, ruleName, params);
-            } else if (modFun->isTreeNodeModifier()) {
-              output = modFun->callVec(this->shared_from_this(), ruleName, params);
+          // Because of the way the parse tree is built, this node will never have actions attached to the front of
+          // the input. Therefore, the first capture group from this regex will be the rule name.
+          std::string ruleName = std::regex_replace(this->input, details::getRuleRegex(), "$1");
+          try {
+            // If the modifier name names a real modifier, call it with the appropriate input and parameters (if any), and
+            // update the output string.
+            auto& modFun = modFuns[modName];
+            if (modFun->isStringModifier()) {
+              output = modFun->callVec(output, params);
+            } else {
+              if (modFun->isTreeModifier()) {
+                output = modFun->callVec(tree, ruleName, params);
+              } else if (modFun->isTreeNodeModifier()) {
+                output = modFun->callVec(this->shared_from_this(), ruleName, params);
+              }
             }
+          } catch (tracerz::WrongParametersException& wpe) {
+            std::string msg = "Exception while calling modifier: " + modName + " on: " + ruleName + "\n\t" + wpe.what()
+                              + "\nIn: " + this->input;
+            throw WrongParametersException(msg);
           }
         }
       }

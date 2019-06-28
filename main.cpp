@@ -172,6 +172,9 @@ TEST_CASE("Custom modifiers", "[tracerz]") {
 
     // Test calling with no parentheses and no params
     REQUIRE(zgr.flatten("#rule.eris()#") == "hail eris");
+
+    // Test calling with wrong number of parameters
+    REQUIRE_THROWS_AS(zgr.flatten("#rule.eris(2,3)#"), tracerz::WrongParametersException);
   }
 
   SECTION("Custom single parameter modifier") {
@@ -206,6 +209,9 @@ TEST_CASE("Custom modifiers", "[tracerz]") {
     REQUIRE(zgr.flatten("#rule.eris(no1,yes,output,no4)#") == "yes");
     REQUIRE(zgr.flatten("#rule.eris(no1,no2,no3,output)#") == "output");
     REQUIRE(zgr.flatten("#rule.eris(yes,no2,no3,no4)#") == "yes");
+
+    REQUIRE_THROWS_AS(zgr.flatten("#rule.eris#"), tracerz::WrongParametersException);
+    REQUIRE_THROWS_AS(zgr.flatten("#rule.eris(1,2,3,4,5)#"), tracerz::WrongParametersException);
   }
 }
 
