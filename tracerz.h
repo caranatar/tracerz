@@ -634,8 +634,6 @@ public:
       , isNodeComplete_(false)
       , prevLeaf(nullptr)
       , nextLeaf(nullptr)
-      , prevUnexpandedLeaf(nullptr)
-      , nextUnexpandedLeaf(nullptr)
       , isNodeHidden_(false) {
   }
 
@@ -646,21 +644,15 @@ public:
    * @param input the input string
    * @param prev the leaf prior to this leaf
    * @param next the next leaf from this leaf
-   * @param prevUnexpanded the unexpanded leaf prior to this unexpanded leaf
-   * @param nextUnexpanded the next unexpanded leaf from this unexpanded leaf
    */
   explicit TreeNode(const std::string& input,
                     std::shared_ptr<TreeNode> prev = nullptr,
-                    std::shared_ptr<TreeNode> next = nullptr,
-                    std::shared_ptr<TreeNode> prevUnexpanded = nullptr,
-                    std::shared_ptr<TreeNode> nextUnexpanded = nullptr)
+                    std::shared_ptr<TreeNode> next = nullptr)
       : input(input)
       , isNodeComplete_(!details::containsRule(input)
                         && !details::containsOnlyActions(input))
       , prevLeaf(std::move(prev))
       , nextLeaf(std::move(next))
-      , prevUnexpandedLeaf(std::move(prevUnexpanded))
-      , nextUnexpandedLeaf(std::move(nextUnexpanded))
       , isNodeHidden_(false) {
   }
 
@@ -699,46 +691,6 @@ public:
     // If the child's next leaf is not null, set its previous leaf to the new node
     if (child->nextLeaf)
       child->nextLeaf->prevLeaf = child;
-
-    // If this new child is not complete, set its previous and next unexpanded leaves
-    if (!child->isNodeComplete()) {
-      std::shared_ptr<TreeNode> prevUnexpanded = nullptr;
-      std::shared_ptr<TreeNode> nextUnexpanded = nullptr;
-
-      if (this->prevUnexpandedLeaf) {
-        // If this leaf has a previous unexpanded leaf, then this is its first expansion. Set the child's previous and
-        // next unexpanded leaves to this one's.
-        prevUnexpanded = this->prevUnexpandedLeaf;
-        nextUnexpanded = this->nextUnexpandedLeaf;
-      } else if (!this->children.empty()) {
-        // If this node has children, get the last child *C* with a previous unexpanded leaf, set the new child's
-        // previous unexpanded leaf to *C*, and set the new child's next unexpanded leaf to *C*'s next unexpanded node.
-        for (auto i = this->children.rbegin();
-             i != this->children.rend();
-             i++) {
-          if ((*i)->hasPrevUnexpandedLeaf()) {
-            prevUnexpanded = *i;
-            nextUnexpanded = (*i)->nextUnexpandedLeaf;
-            break;
-          }
-        }
-      }
-
-      // Set the child object's previous and next unexpanded leaves
-      child->prevUnexpandedLeaf = prevUnexpanded;
-      child->nextUnexpandedLeaf = nextUnexpanded;
-
-      // If the child's previous unexpanded leaf is not null, set its next unexpanded leaf to the new child
-      if (child->prevUnexpandedLeaf)
-        child->prevUnexpandedLeaf->nextUnexpandedLeaf = child;
-
-      // If the child's next unexpanded leaf is not null, set its previous unexpanded leaf to the new child
-      if (child->nextUnexpandedLeaf)
-        child->nextUnexpandedLeaf->prevUnexpandedLeaf = child;
-
-      // This node has been at least partially expanded and is no longer part of the chain of unexpanded leaves
-      this->prevUnexpandedLeaf = this->nextUnexpandedLeaf = nullptr;
-    }
 
     // If this is a hidden node, hide the child
     child->isNodeHidden_ = this->isNodeHidden_;
@@ -884,6 +836,8 @@ public:
   template<typename RNG, typename UniformIntDistributionT>
   void expandNode(const nlohmann::json&, RNG&, details::runtime_dictionary_t&);
 
+  std::vector<std::shared_ptr<TreeNode>> getChildren() const { return this->children; }
+
   /**
    * Gets the input string for this node
    *
@@ -901,50 +855,12 @@ public:
   }
 
   /**
-   * Gets the next unexpanded leaf (if applicable). If this is the last unexpanded leaf, is partiall or fully expanded,
-   * or is not a leaf, will return nullptr.
-   *
-   * @return the next unexpanded leaf (if applicable)
-   */
-  std::shared_ptr<TreeNode> getNextUnexpandedLeaf() const {
-    return this->nextUnexpandedLeaf;
-  }
-
-  /**
    * Gets the previous leaf (if applicable). If this node is not a leaf, will return nullptr.
    *
    * @return the previous leaf (if applicable)
    */
   std::shared_ptr<TreeNode> getPrevLeaf() const {
     return this->prevLeaf;
-  }
-
-  /**
-   * Gets the previous unexpanded leaf (if applicable). If this is partially or fully expanded, or is not a leaf, this
-   * will return nullptr.
-   *
-   * @return the previous unexpanded leaf (if applicable)
-   */
-  std::shared_ptr<TreeNode> getPrevUnexpandedLeaf() const {
-    return this->prevUnexpandedLeaf;
-  }
-
-  /**
-   * Returns true if this node has a next unexpanded leaf
-   *
-   * @return true if this node has a next unexpanded leaf
-   */
-  bool hasNextUnexpandedLeaf() const {
-    return this->nextUnexpandedLeaf ? true : false;
-  }
-
-  /**
-   * Returns true if this node has a previous unexpanded leaf
-   *
-   * @return true if this node has a previous unexpanded leaf
-   */
-  bool hasPrevUnexpandedLeaf() const {
-    return this->prevUnexpandedLeaf ? true : false;
   }
 
   /**
@@ -964,30 +880,12 @@ public:
   }
 
   /**
-   * Sets the next unexpanded leaf
-   *
-   * @param next the next unexpanded leaf
-   */
-  void setNextUnexpandedLeaf(std::shared_ptr<TreeNode> next) {
-    this->nextUnexpandedLeaf = std::move(next);
-  }
-
-  /**
    * Sets the previous leaf
    *
    * @param next the previous leaf
    */
   void setPrevLeaf(std::shared_ptr<TreeNode> prev) {
     this->prevLeaf = std::move(prev);
-  }
-
-  /**
-   * Sets the previous unexpanded leaf
-   *
-   * @param next the previous unexpanded leaf
-   */
-  void setPrevUnexpandedLeaf(std::shared_ptr<TreeNode> prev) {
-    this->prevUnexpandedLeaf = std::move(prev);
   }
 
   /**
@@ -1051,12 +949,6 @@ private:
 
   /** A pointer to the next leaf if this is a leaf and one exists. */
   std::shared_ptr<TreeNode> nextLeaf;
-
-  /**  A pointer to the previous unexpanded leaf if this is an unexpanded leaf and one exists. */
-  std::shared_ptr<TreeNode> prevUnexpandedLeaf;
-
-  /** A pointer to the next unexpanded leaf if this is an unexpanded leaf and one exists. */
-  std::shared_ptr<TreeNode> nextUnexpandedLeaf;
 
   /** A key name if one has been set on this node. */
   std::optional<std::string> keyName;
@@ -1258,12 +1150,6 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
                     }
                   });
   }
-
-  // Remove this node from the linked list of unexpanded leaves, if applicable
-  if (this->prevUnexpandedLeaf)
-    this->prevUnexpandedLeaf->nextUnexpandedLeaf = this->nextUnexpandedLeaf;
-  if (this->nextUnexpandedLeaf)
-    this->nextUnexpandedLeaf->prevUnexpandedLeaf = this->prevUnexpandedLeaf;
 }
 
 /**
@@ -1282,19 +1168,11 @@ public:
   Tree(const std::string& input,
        const nlohmann::json& grammar)
       : leafIndex(new TreeNode)
-      , unexpandedLeafIndex(new TreeNode)
       , root(new TreeNode(input))
-      , nextUnexpandedLeaf(nullptr)
       , jsonGrammar(grammar) {
     // Insert the root at the beginning of the leaf linked list, after the head
     this->root->setPrevLeaf(this->leafIndex);
     this->leafIndex->setNextLeaf(this->root);
-
-    // If the node is not complete, add it after the head of the unexpanded leaf linked list
-    if (!this->root->isNodeComplete()) {
-      this->unexpandedLeafIndex->setNextUnexpandedLeaf(this->root);
-      this->root->setPrevUnexpandedLeaf(this->unexpandedLeafIndex);
-    }
   }
 
   /**
@@ -1308,14 +1186,15 @@ public:
    */
   template<typename RNG, typename UniformIntDistributionT>
   bool expand(const details::callback_map_t& modFuns, RNG& rng) {
-    // Get the leftmost unexpanded leaf
-    auto next = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
+    if (this->expandingNodes.empty()) {
+      if (!(this->root->isNodeComplete() || this->root->hasChildren())) {
+        this->expandingNodes.push(this->root);
+      } else {
+        return false;
+      }
+    }
 
-    // Return false if the tree is already fully expanded
-    if (!next) return false;
-
-    // Push it onto the stack of nodes currently being expanded
-    this->expandingNodes.push(next);
+    auto next = this->expandingNodes.top();
 
     // Expand the node
     next->expandNode<RNG, UniformIntDistributionT>(this->jsonGrammar,
@@ -1375,46 +1254,15 @@ public:
           shouldContinue = false;
         }
       }
+    } else {
+      auto children = next->getChildren();
+      std::for_each(children.rbegin(), children.rend(), [this](const std::shared_ptr<TreeNode>& n) {
+        if (!n->isNodeComplete()) this->expandingNodes.push(n);
+      });
     }
 
     // Return true if there are still nodes to expand
-    return this->unexpandedLeafIndex->hasNextUnexpandedLeaf();
-  }
-
-  /**
-   * Expand the tree in a breadth-first manner.
-   *
-   * @tparam RNG the type of the random number generator
-   * @param rng the random number generator
-   * @return true if there are still unexpanded nodes
-   */
-  template<typename RNG>
-  bool expandBF(RNG& rng) {
-    // If the pointer to the next unexpanded leaf is null
-    if (!this->nextUnexpandedLeaf) {
-      // But the unexpanded leaf linked list is not empty
-      if (this->unexpandedLeafIndex->hasNextUnexpandedLeaf()) {
-        // Then start at the beginning of the linked list
-        this->nextUnexpandedLeaf = this->unexpandedLeafIndex->getNextUnexpandedLeaf();
-      } else {
-        // If the linked list is also empty, the tree is fully expanded
-        return false;
-      }
-    }
-
-    // Get the next unexpanded leaf
-    std::shared_ptr<TreeNode> next = this->nextUnexpandedLeaf->getNextUnexpandedLeaf();
-
-    // Expand the current unexpanded leaf
-    this->nextUnexpandedLeaf->expandNode(this->jsonGrammar,
-                                         rng,
-                                         this->runtimeDictionary);
-
-    // Update the cursor
-    this->nextUnexpandedLeaf = next;
-
-    // Return true since there are unexpanded leaves
-    return true;
+    return !this->expandingNodes.empty();
   }
 
   /**
@@ -1424,15 +1272,6 @@ public:
    */
   std::shared_ptr<TreeNode> getFirstLeaf() const {
     return this->leafIndex->getNextLeaf();
-  }
-
-  /**
-   * Gets the leftmost unexpanded leaf of the tree.
-   *
-   * @return the leftmost unexpanded leaf of the tree
-   */
-  std::shared_ptr<TreeNode> getFirstUnexpandedLeaf() const {
-    return this->unexpandedLeafIndex->getNextUnexpandedLeaf();
   }
 
   /**
@@ -1463,14 +1302,8 @@ private:
   /** Points to the leftmost leaf of the tree */
   std::shared_ptr<TreeNode> leafIndex;
 
-  /** Points to the leftmost unexpanded leaf */
-  std::shared_ptr<TreeNode> unexpandedLeafIndex;
-
   /** The root of the tree */
   std::shared_ptr<TreeNode> root;
-
-  /** Points to the current node to expand for breadth-first expansion */
-  std::shared_ptr<TreeNode> nextUnexpandedLeaf;
 
   /** The input grammar */
   const nlohmann::json& jsonGrammar;
