@@ -811,7 +811,12 @@ public:
     std::string ret;
     for (auto& child : this->children) {
       // We can't ignore modifiers, because we will get the wrong output from flattening our children if we do.
-      ret += child->flatten(modFuns, tree, ignoreHidden, false);
+      try {
+        ret += child->flatten(modFuns, tree, ignoreHidden, false);
+      } catch (tracerz::WrongParametersException& wpe) {
+        std::string msg = "Exception while flattening " + this->input + "\n" + wpe.what();
+        throw WrongParametersException(msg);
+      }
     }
 
     // Return the flattened children's string
@@ -1146,17 +1151,7 @@ public:
       auto poppedNode = this->expandingNodes.top();
       this->expandingNodes.pop();
 
-      // Check if it has a key name
-      if (poppedNode->getKeyName()) {
-        // If so, get it
-        std::string key = *poppedNode->getKeyName();
-
-        // Flatten the subtree to get the value of the key
-        std::string value = poppedNode->flatten(modFuns, this->shared_from_this(), false);
-
-        // Set the key in the runtime grammar
-        if (!key.empty()) this->runtimeDictionary[key].push(value);
-      }
+      this->handleKey(poppedNode, modFuns);
 
       // Keep going if there are other nodes we were expanding
       bool shouldContinue = !this->expandingNodes.empty();
@@ -1176,17 +1171,7 @@ public:
           // If there are still nodes in the stack, keep looking
           shouldContinue = !this->expandingNodes.empty();
 
-          // Check if the poppedNode has a key name
-          if (poppedNode->getKeyName()) {
-            // If so, get it.
-            std::string key = *poppedNode->getKeyName();
-
-            // Flatten the subtree to get the value of the key
-            std::string value = poppedNode->flatten(modFuns, this->shared_from_this(), false);
-
-            // Set the key in the runtime grammar
-            this->runtimeDictionary[key].push(value);
-          }
+          this->handleKey(poppedNode, modFuns);
         } else {
           // poppedNode is not the last expandable child of newTop. There are still more children to expand, so we can
           // stop examining the stack.
@@ -1229,6 +1214,27 @@ public:
   details::runtime_dictionary_t& getRuntimeDictionary() { return this->runtimeDictionary; }
 
 private:
+
+  void handleKey(const std::shared_ptr<TreeNode> node, const tracerz::details::callback_map_t& modFuns) {
+    // Check if it has a key name
+    if (node->getKeyName()) {
+      // If so, get it
+      std::string key = *node->getKeyName();
+
+      std::string value;
+      try {
+        // Flatten the subtree to get the value of the key
+        value = node->flatten(modFuns, this->shared_from_this(), false);
+      } catch (tracerz::WrongParametersException& wpe) {
+        std::string msg = "Encountered exception while setting key: " + key + "\n" + wpe.what();
+        throw tracerz::WrongParametersException(msg);
+      }
+
+      // Set the key in the runtime grammar
+      if (!key.empty()) this->runtimeDictionary[key].push(value);
+    }
+  }
+
   /** Points to the leftmost leaf of the tree */
   std::shared_ptr<TreeNode> leafIndex;
 
