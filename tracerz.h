@@ -33,6 +33,16 @@ public:
   using Exception::Exception;
 };
 
+class BadHandlerException : public Exception {
+public:
+  using Exception::Exception;
+};
+
+class UnexpectedTypeException : public Exception {
+public:
+  using Exception::Exception;
+};
+
 namespace details {
 
 /**
@@ -213,6 +223,10 @@ public:
   }
 
   nlohmann::json handleObj(const nlohmann::json& inGrammar, RNG& rng) override {
+    if (!inGrammar.is_object()) {
+      std::string msg = "Error while handling " + inGrammar.dump() + ". Expected an object.";
+      throw UnexpectedTypeException(msg);
+    }
     return this->callback(inGrammar, rng);
   }
 
@@ -995,7 +1009,10 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     if (ruleContents.is_null())
       ruleContents = jsonGrammar[ruleName];
 
-    if (ruleContents.is_null()) throw "couldnt find a rule"; // TODO: yup really bad still
+    if (ruleContents.is_null()) {
+      // TODO: make configurable
+      ruleContents = "{{" + ruleName + "}}";
+    }
 
     // This will be the output of expanding the rule
     std::string output;
@@ -1015,19 +1032,20 @@ void TreeNode::expandNode(const nlohmann::json& jsonGrammar,
     if (ruleContents.is_object()) {
       std::string handlerName;
       if (ruleContents.find("handler") == ruleContents.end()) {
-        // TODO: WOW this is bad. fix this.
-        throw "no handler";
+        std::string msg = "Object " + ruleContents.dump() + " does not contain a handler member";
+        throw tracerz::BadHandlerException(msg);
       }
       handlerName = ruleContents["handler"];
       if (objHandlers.find(handlerName) == objHandlers.end()) {
-        // TODO: BAD BAD BAD
-        throw "no such handler";
+        std::string msg = "Object " + ruleContents.dump() + " uses undefined handler: " + handlerName;
+        throw tracerz::BadHandlerException(msg);
       }
       auto handler = objHandlers[handlerName];
       auto handlerResult = handler->handleObj(ruleContents, rng);
       if (!handlerResult.is_string()) {
-        // TODO: Absolutely terrible
-        throw "handler result not a string";
+        std::string msg = "Object handler: " + handlerName + " operating on: " + ruleContents.dump() +
+                          " returned non-string value: " + handlerResult.dump();
+        throw tracerz::BadHandlerException(msg);
       }
       output = handlerResult;
     }
@@ -1189,7 +1207,7 @@ public:
    * @return true if there is still at least one unexpanded node
    */
   template<typename RNG, typename UniformIntDistributionT>
-  bool expand(const details::callback_map_t& modFuns, RNG& rng) {
+  bool expand(const details::callback_map_t& modFuns, RNG& rng, details::obj_handler_map_t<RNG>& objHandlers) {
     if (this->expandingNodes.empty()) {
       if (!(this->root->isNodeComplete() || this->root->hasChildren())) {
         this->expandingNodes.push(this->root);
@@ -1326,9 +1344,6 @@ const details::obj_handler_map_t<RNG>& getBaseObjectHandlers() {
   baseHandlers["binomial-distribution"] = wrap([](const nlohmann::json& inObj, RNG& rng) {
     nlohmann::json ret;
 
-    // TODO: indicate error
-    if (!inObj.is_object()) return ""_json;
-
     double success = 0.5;
     const std::string successKey = "success-rate";
     if (inObj.find(successKey) != inObj.end()) {
@@ -1357,7 +1372,7 @@ const details::obj_handler_map_t<RNG>& getBaseObjectHandlers() {
     if (!weightsArr.is_array()) return ""_json; // TODO: handle error correctly
     std::vector<double> weights;
     std::for_each(weightsArr.begin(), weightsArr.end(), [&weights](const nlohmann::json& weight) {
-      if (!weight.is_number()) return; // TODO: handle error correctly
+      if (!weight.is_number()) return ""_json; // TODO: handle error correctly
       weights.push_back(weight.get<double>());
     });
 
