@@ -194,7 +194,7 @@ for this reason.
 Tree modifiers can also be parameterized in the same way as output modifiers, by adding addition string parameters to
 the function.
 
-#### Adding tree modifiers
+#### Adding tree node modifiers
 See [Tree node modifiers](#tree-node-modifiers) for details on the definition of tree node modifiers. To create a tree
 node modifier, create a `std::function` that takes a `const std::shared_ptr<TreeNode>&`, representing the tree node
 being acted on, and at least one `const std::string&`, representing the rule name the modifier is being called on, and
